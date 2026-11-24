@@ -118,93 +118,68 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
     );
   }
 
-  // Handle Start Game
+  // Handle Start Game (Admin Authorized)
   const handleStartGame = () => {
+    if (!team) return;
     sound.playSuccess();
-    const now = Date.now();
-    const newSession: GameSession = {
-      ...(session || storage.getGameSession(team.teamId)),
-      status: 'IN_PROGRESS',
-      startTime: now,
-      endTime: null
-    };
-    setSession(newSession);
-    storage.saveGameSession(newSession);
+    const res = storage.adminStartGame(team.teamId);
+    if (res.success && res.session) {
+      setSession(res.session);
+      setSecondsRemaining(1800);
+    }
   };
 
-  // Hint redemption
+  // Hint redemption (Evaluated Server-Side with Penalty)
   const handleUseHint = () => {
-    if (!session) return;
+    if (!session || !team) return;
     const currentStage = PUZZLE_STAGES[currentStageIdx];
     if (session.hintsUsed.includes(currentStage.id)) return;
 
-    sound.playHintWarning();
-    const penaltySec = currentStage.hintPenaltyMinutes * 60;
-    const updated: GameSession = {
-      ...session,
-      penaltySeconds: session.penaltySeconds + penaltySec,
-      hintsUsed: [...session.hintsUsed, currentStage.id]
-    };
-    setSession(updated);
-    storage.saveGameSession(updated);
-    setIsHintModalOpen(false);
+    const res = storage.useHint(team.teamId, currentStage.id);
+    if ('hint' in res) {
+      sound.playHintWarning();
+      const updated = storage.getGameSession(team.teamId);
+      setSession(updated);
+      setSecondsRemaining(res.remainingSeconds);
+      setIsHintModalOpen(false);
+    }
   };
 
-  // Answer submission
+  // Answer submission (Evaluated Server-Side against Private Keys)
   const handleAnswerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session || session.status !== 'IN_PROGRESS') return;
+    if (!session || session.status !== 'IN_PROGRESS' || !team) return;
 
     setErrorMsg('');
     setSuccessMsg('');
     sound.playTypewriter();
 
     const currentStage = PUZZLE_STAGES[currentStageIdx];
-    let isCorrect = false;
+    let submittedAnswer = '';
 
     if (currentStage.inputType === 'options') {
-      isCorrect = selectedOption.trim().toUpperCase() === currentStage.correctAnswer.trim().toUpperCase();
+      submittedAnswer = selectedOption;
     } else if (currentStage.inputType === 'text') {
-      isCorrect = textInput.trim().toUpperCase() === currentStage.correctAnswer.trim().toUpperCase();
+      submittedAnswer = textInput;
     } else if (currentStage.inputType === 'two_part') {
-      const p1 = selectedOption.trim().toUpperCase() === currentStage.correctAnswer.trim().toUpperCase();
-      const p2 = selectedOption2.trim().toUpperCase() === currentStage.correctAnswer2?.trim().toUpperCase();
-      isCorrect = p1 && p2;
+      submittedAnswer = `${selectedOption}|${selectedOption2}`;
     }
 
-    if (isCorrect) {
+    const result = storage.verifyAnswer(team.teamId, currentStage.id, submittedAnswer);
+
+    if (result.isCorrect) {
       sound.playSuccess();
-      const updatedCompleted = session.completedStages.includes(currentStage.id)
-        ? session.completedStages
-        : [...session.completedStages, currentStage.id];
-
-      const newScore = updatedCompleted.reduce((acc, stageId) => {
-        const st = PUZZLE_STAGES.find(s => s.id === stageId);
-        return acc + (st ? st.points : 0);
-      }, 0);
-
-      const isFinal = updatedCompleted.length === 5;
-      const now = Date.now();
-
-      const updatedSession: GameSession = {
-        ...session,
-        score: newScore,
-        completedStages: updatedCompleted,
-        currentStage: isFinal ? 5 : currentStageIdx + 2,
-        status: isFinal ? 'COMPLETED' : 'IN_PROGRESS',
-        endTime: isFinal ? now : session.endTime
-      };
-
+      const updatedSession = storage.getGameSession(team.teamId);
       setSession(updatedSession);
-      storage.saveGameSession(updatedSession);
-      setSuccessMsg(`Stage ${currentStage.stageNumber} Verified! +${currentStage.points} Points Awarded.`);
+      setSecondsRemaining(result.remainingSeconds);
+      setSuccessMsg(result.message);
 
       // Reset form fields
       setSelectedOption('');
       setSelectedOption2('');
       setTextInput('');
 
-      if (isFinal) {
+      if (result.isCompleted) {
         sound.playVictory();
         confetti({
           particleCount: 150,
@@ -220,7 +195,7 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
       }
     } else {
       sound.playError();
-      setErrorMsg('Incorrect deduction. Re-examine the evidence log and try again.');
+      setErrorMsg(result.message);
     }
   };
 
@@ -314,34 +289,48 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
       {session?.status === 'NOT_STARTED' && team.paymentStatus === 'VERIFIED' && (
         <div className="bg-[#111420] border-2 border-amber-500/40 rounded-2xl p-8 text-center space-y-6 shadow-glow-gold max-w-2xl mx-auto my-6">
           <span className="classified-stamp text-xs text-amber-400 border-amber-500 bg-amber-950/50">
-            OFFICIAL AUTHORIZATION GRANTED
+            OFFICIAL CLEARANCE GRANTED • READY FOR LAUNCH
           </span>
 
           <h3 className="text-3xl font-display font-bold text-white">
-            Ready to Begin Case 001?
+            Squad Clearance Verified
           </h3>
 
           <p className="text-sm text-slate-300 font-mono max-w-md mx-auto leading-relaxed">
-            The 30-minute persistent countdown will activate the instant you initiate. Once running, the clock cannot be paused or reset.
+            To maintain strict competitive fairness across all squads, the official 30-minute investigation clock is activated by an event administrator at the tournament desk.
           </p>
 
           <div className="p-4 bg-[#0a0d14] rounded-xl border border-slate-800 text-xs font-mono text-left space-y-2 text-slate-300">
             <div className="flex items-center gap-2 text-amber-400 font-bold">
               <CheckCircle2 className="w-4 h-4" />
-              <span>RULES OF ENGAGEMENT:</span>
+              <span>TOURNAMENT RULES:</span>
             </div>
             <p>• 5 Connected Stages (100 Points Total)</p>
-            <p>• Unlimited retry attempts (no wrong-answer point deduction)</p>
-            <p>• 1 Optional Hint per stage (+2 minute leaderboard penalty)</p>
-            <p>• Server synchronized: Browser refresh preserves your session</p>
+            <p>• 1 Optional Hint per stage (+120s leaderboard time penalty)</p>
+            <p>• Answers verified atomically against server security keys</p>
+            <p>• Leaderboard ranking: Score &gt; Lowest Adjusted Duration &gt; Earliest Completion</p>
           </div>
 
-          <button
-            onClick={handleStartGame}
-            className="w-full sm:w-auto px-10 py-4 rounded-xl font-display font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-glow-gold transition-all text-base"
-          >
-            START 30-MINUTE INVESTIGATION
-          </button>
+          <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+            <button
+              onClick={() => {
+                sound.playClick();
+                if (team) {
+                  const refreshed = storage.getGameSession(team.teamId);
+                  setSession(refreshed);
+                }
+              }}
+              className="px-6 py-3 rounded-xl font-mono text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+            >
+              🔄 Refresh Launch Status
+            </button>
+            <button
+              onClick={handleStartGame}
+              className="px-6 py-3 rounded-xl font-mono text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-glow-gold transition-all flex items-center justify-center gap-2"
+            >
+              <span>▶ Launch 30-Minute Clock</span>
+            </button>
+          </div>
         </div>
       )}
 

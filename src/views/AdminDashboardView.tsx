@@ -74,6 +74,59 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     }
   };
 
+  // Admin Game Session Controls
+  const handleStartGame = (teamId: string) => {
+    sound.playSuccess();
+    const res = storage.adminStartGame(teamId);
+    if (!res.success) {
+      alert(res.error || 'Failed to start game session');
+    }
+    refreshAll();
+  };
+
+  const handleExpireGame = (teamId: string) => {
+    if (confirm('Force expire game session for this squad?')) {
+      sound.playError();
+      storage.adminExpireGame(teamId);
+      refreshAll();
+    }
+  };
+
+  // CSV Report Export
+  const handleExportCSV = () => {
+    sound.playClick();
+    const rows = [
+      ['Team Code', 'Team Name', 'Leader', 'Email', 'Phone', 'College', 'Players', 'Amount', 'Payment Ref', 'Payment Status', 'Game Status', 'Score', 'Completed Stages', 'Registered At'],
+      ...teams.map(t => {
+        const sess = storage.getGameSession(t.teamId);
+        return [
+          t.teamId,
+          t.teamName,
+          t.leaderName,
+          t.leaderEmail,
+          t.leaderPhone,
+          t.college,
+          t.playerCount,
+          t.totalAmount,
+          t.paymentRef,
+          t.paymentStatus,
+          sess.status,
+          sess.score,
+          sess.completedStages.length,
+          t.registeredAt
+        ];
+      })
+    ];
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `campus_quest_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Add Expense
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,6 +337,51 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
             </div>
           </div>
 
+          {/* Exact Collegiate Ledger from Blueprint */}
+          <div className="bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="font-display font-bold text-lg text-white">
+                  Official Event Capital & Retained Profit Ledger
+                </h3>
+                <p className="text-xs font-mono text-slate-400">
+                  Live reconciliation based exclusively on verified squad payments and recorded operational receipts.
+                </p>
+              </div>
+              <button
+                onClick={handleExportCSV}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs font-mono transition-colors"
+              >
+                📥 Export CSV Audit
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
+              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
+                <span className="text-slate-400 text-[10px] uppercase block">INITIAL SEED CAPITAL</span>
+                <span className="text-xl font-bold text-white mt-1 block">₹1,000</span>
+                <span className="text-[10px] text-slate-500">Allocated base budget</span>
+              </div>
+              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
+                <span className="text-slate-400 text-[10px] uppercase block">CLOSING CASH ON HAND</span>
+                <span className="text-xl font-bold text-amber-400 mt-1 block">₹{1000 + netProfit}</span>
+                <span className="text-[10px] text-slate-500">₹1,000 + Rev - Exp</span>
+              </div>
+              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
+                <span className="text-slate-400 text-[10px] uppercase block">CAPITAL TO RETURN</span>
+                <span className="text-xl font-bold text-blue-400 mt-1 block">₹1,000</span>
+                <span className="text-[10px] text-slate-500">100% Principal payback</span>
+              </div>
+              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
+                <span className="text-slate-400 text-[10px] uppercase block">RETAINED NET PROFIT</span>
+                <span className={`text-xl font-bold mt-1 block ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ₹{netProfit}
+                </span>
+                <span className="text-[10px] text-slate-500">Closing Cash - ₹1,000</span>
+              </div>
+            </div>
+          </div>
+
           {/* Revenue Scenario Comparison (For College Judges & Faculty) */}
           <div className="bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -329,13 +427,21 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
       {/* TAB 2: TEAM REGISTRY & PAYMENTS */}
       {activeTab === 'teams' && (
         <div className="bg-[#111420] border border-[#232b3d] rounded-2xl overflow-hidden shadow-2xl">
-          <div className="p-4 bg-[#0b0e17] border-b border-slate-800 flex justify-between items-center text-xs font-mono">
-            <span className="font-bold text-slate-300 uppercase">
-              REGISTERED SQUADS ({teams.length} TOTAL)
-            </span>
-            <span className="text-amber-400">
-              Click 'Verify' after matching 12-digit UTR in your bank/UPI app
-            </span>
+          <div className="p-4 bg-[#0b0e17] border-b border-slate-800 flex flex-wrap justify-between items-center gap-3 text-xs font-mono">
+            <div>
+              <span className="font-bold text-slate-300 uppercase block">
+                REGISTERED SQUADS ({teams.length} TOTAL)
+              </span>
+              <span className="text-amber-400 text-[11px]">
+                Verify UPI UTR & initiate 30-minute official game session clocks
+              </span>
+            </div>
+            <button
+              onClick={handleExportCSV}
+              className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              📥 Export CSV Report
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -347,72 +453,113 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
                   <th className="py-3 px-4">MEMBERS</th>
                   <th className="py-3 px-4">UPI UTR REF</th>
                   <th className="py-3 px-4">AMOUNT</th>
-                  <th className="py-3 px-4">STATUS</th>
+                  <th className="py-3 px-4">PAYMENT</th>
+                  <th className="py-3 px-4">GAME CLOCK</th>
                   <th className="py-3 px-4 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {teams.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-900/50">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-white font-sans">{t.teamName}</div>
-                      <div className="text-amber-400 text-[11px]">{t.teamId}</div>
-                      <div className="text-slate-500 text-[10px]">Passcode: {t.accessCode}</div>
-                    </td>
+                {teams.map((t) => {
+                  const sess = storage.getGameSession(t.teamId);
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-900/50">
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-white font-sans">{t.teamName}</div>
+                        <div className="text-amber-400 text-[11px]">{t.teamId}</div>
+                        <div className="text-slate-500 text-[10px]">Passcode: {t.accessCode}</div>
+                      </td>
 
-                    <td className="py-3.5 px-4 text-slate-300">
-                      <div>{t.leaderName}</div>
-                      <div className="text-slate-500 text-[11px]">{t.leaderPhone}</div>
-                      <div className="text-slate-500 text-[10px]">{t.college}</div>
-                    </td>
+                      <td className="py-3.5 px-4 text-slate-300">
+                        <div>{t.leaderName}</div>
+                        <div className="text-slate-500 text-[11px]">{t.leaderPhone}</div>
+                        <div className="text-slate-500 text-[10px]">{t.college}</div>
+                      </td>
 
-                    <td className="py-3.5 px-4 text-slate-400">
-                      <span className="text-white font-bold">{t.playerCount} Players</span>
-                      <div className="text-[10px] text-slate-500 max-w-xs truncate">
-                        {t.members.join(', ')}
-                      </div>
-                    </td>
+                      <td className="py-3.5 px-4 text-slate-400">
+                        <span className="text-white font-bold">{t.playerCount} Players</span>
+                        <div className="text-[10px] text-slate-500 max-w-xs truncate">
+                          {t.members.join(', ')}
+                        </div>
+                      </td>
 
-                    <td className="py-3.5 px-4">
-                      <code className="text-amber-300 font-bold bg-black/40 px-2 py-1 rounded border border-slate-800 text-[11px]">
-                        {t.paymentRef}
-                      </code>
-                    </td>
+                      <td className="py-3.5 px-4">
+                        <code className="text-amber-300 font-bold bg-black/40 px-2 py-1 rounded border border-slate-800 text-[11px]">
+                          {t.paymentRef}
+                        </code>
+                      </td>
 
-                    <td className="py-3.5 px-4 font-bold text-white">
-                      ₹{t.totalAmount}
-                    </td>
+                      <td className="py-3.5 px-4 font-bold text-white">
+                        ₹{t.totalAmount}
+                      </td>
 
-                    <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        t.paymentStatus === 'VERIFIED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                        t.paymentStatus === 'REJECTED' ? 'bg-red-950 text-red-400 border border-red-800' :
-                        'bg-orange-950 text-orange-400 border border-orange-800'
-                      }`}>
-                        {t.paymentStatus}
-                      </span>
-                    </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          t.paymentStatus === 'VERIFIED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                          t.paymentStatus === 'REJECTED' ? 'bg-red-950 text-red-400 border border-red-800' :
+                          'bg-orange-950 text-orange-400 border border-orange-800'
+                        }`}>
+                          {t.paymentStatus}
+                        </span>
+                      </td>
 
-                    <td className="py-3.5 px-4 text-right space-x-2">
-                      {t.paymentStatus !== 'VERIFIED' && (
-                        <button
-                          onClick={() => handleVerifyPayment(t.teamId)}
-                          className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors"
-                        >
-                          Verify & Activate
-                        </button>
-                      )}
-                      {t.paymentStatus !== 'REJECTED' && (
-                        <button
-                          onClick={() => handleRejectPayment(t.teamId)}
-                          className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] transition-colors"
-                        >
-                          Reject
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-3.5 px-4">
+                        {t.paymentStatus !== 'VERIFIED' ? (
+                          <span className="text-slate-500 text-[10px]">Awaiting Payment</span>
+                        ) : sess.status === 'NOT_STARTED' ? (
+                          <span className="text-amber-400 text-[10px] font-bold">Ready to Launch</span>
+                        ) : sess.status === 'IN_PROGRESS' ? (
+                          <span className="text-cyan-400 text-[10px] font-bold flex items-center gap-1 animate-pulse">
+                            ⏱ Running ({sess.score} pts)
+                          </span>
+                        ) : sess.status === 'COMPLETED' ? (
+                          <span className="text-emerald-400 text-[10px] font-bold">✓ Solved ({sess.score}/100)</span>
+                        ) : (
+                          <span className="text-red-400 text-[10px] font-bold">Expired</span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right space-x-2">
+                        {t.paymentStatus !== 'VERIFIED' ? (
+                          <>
+                            <button
+                              onClick={() => handleVerifyPayment(t.teamId)}
+                              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors"
+                            >
+                              Verify & Clear
+                            </button>
+                            {t.paymentStatus !== 'REJECTED' && (
+                              <button
+                                onClick={() => handleRejectPayment(t.teamId)}
+                                className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] transition-colors"
+                              >
+                                Reject
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {sess.status === 'NOT_STARTED' && (
+                              <button
+                                onClick={() => handleStartGame(t.teamId)}
+                                className="px-2.5 py-1 rounded bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-[11px] shadow-glow-gold transition-colors"
+                              >
+                                ▶ Start 30m Clock
+                              </button>
+                            )}
+                            {sess.status === 'IN_PROGRESS' && (
+                              <button
+                                onClick={() => handleExpireGame(t.teamId)}
+                                className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] transition-colors"
+                              >
+                                Force Expire
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

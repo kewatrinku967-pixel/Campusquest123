@@ -62,6 +62,18 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, o
       return;
     }
 
+    // Server-grade validation: prevent duplicate verified UPI reference
+    const existingTeams = storage.getTeams();
+    const cleanRef = paymentRef.trim().toUpperCase();
+    const isDuplicate = existingTeams.some(
+      t => t.paymentStatus === 'VERIFIED' && t.paymentRef.trim().toUpperCase() === cleanRef
+    );
+    if (isDuplicate) {
+      setError('This UPI Transaction Reference has already been verified for another squad.');
+      sound.playError();
+      return;
+    }
+
     setIsSubmitting(true);
     sound.playTypewriter();
 
