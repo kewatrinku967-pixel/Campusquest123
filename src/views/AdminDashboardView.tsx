@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Lock, Shield, CheckCircle2, XCircle, AlertTriangle, Users, 
   DollarSign, TrendingUp, Settings, Plus, RefreshCw, KeyRound, 
-  ToggleLeft, ToggleRight, Megaphone, Trash2, FileText, ArrowRight
+  ToggleLeft, ToggleRight, Megaphone, Trash2, FileText, ArrowRight, X
 } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { sound } from '../utils/sound';
@@ -159,13 +159,44 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     alert('Settings successfully updated and broadcasted!');
   };
 
-  // Reset demo data
-  const handleResetDemo = () => {
-    if (confirm('Reset all demo registrations and sessions to factory defaults?')) {
-      storage.resetAllData();
-      refreshAll();
-      sound.playClick();
+  // Reset demo modal state (Requirement 8)
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetConfirmInput, setResetConfirmInput] = useState('');
+  const [resetMode, setResetMode] = useState<'clean_demo' | 'full_reset'>('clean_demo');
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const handleOpenResetModal = () => {
+    sound.playClick();
+    setResetConfirmInput('');
+    setResetError(null);
+    setResetFeedback(null);
+    setIsResetModalOpen(true);
+  };
+
+  const handleExecuteReset = () => {
+    if (resetConfirmInput.trim() !== 'RESET DEMO DATA') {
+      sound.playError();
+      setResetError('Confirmation text mismatch. You must type "RESET DEMO DATA" exactly as shown.');
+      return;
     }
+
+    sound.playSuccess();
+    setResetError(null);
+
+    if (resetMode === 'clean_demo') {
+      const res = storage.cleanDemoData();
+      setResetFeedback(`✓ Selective cleanup complete: Removed ${res.deletedTeams} demo squads, ${res.deletedSessions} demo sessions, and ${res.deletedExpenses} demo expenses. Preserved ${res.preservedTeams} real student registrations.`);
+    } else {
+      const res = storage.resetToCleanState();
+      setResetFeedback(`✓ Complete launch reset: Purged ${res.clearedTeams} teams, ${res.clearedSessions} sessions, and ${res.clearedExpenses} expenses. Dashboard is now in a pristine 0-state ready for Day 1 registrations.`);
+    }
+
+    refreshAll();
+    setTimeout(() => {
+      setIsResetModalOpen(false);
+      setResetFeedback(null);
+    }, 2400);
   };
 
   if (!isAuthenticated) {
@@ -230,14 +261,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     );
   }
 
-  // Financial Calculations
+  // Dynamic Dashboard Stats directly derived from live database / storage state
+  const stats = storage.getDashboardCounts();
+  const demoCounts = storage.getDemoRecordCounts();
+
   const verifiedTeams = teams.filter(t => t.paymentStatus === 'VERIFIED');
   const pendingTeams = teams.filter(t => t.paymentStatus === 'PENDING');
   const totalParticipants = teams.reduce((acc, t) => acc + t.playerCount, 0);
 
-  const realRevenue = verifiedTeams.reduce((acc, t) => acc + t.totalAmount, 0);
-  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-  const netProfit = realRevenue - totalExpenses;
+  const realRevenue = stats.verifiedRevenue;
+  const totalExpenses = stats.recordedExpenses;
+  const netProfit = stats.netProfit;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -268,9 +302,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
             Refresh
           </button>
           <button
-            onClick={handleResetDemo}
-            className="px-3.5 py-2 rounded-xl bg-red-950/40 border border-red-800 text-red-300 hover:bg-red-900/60 text-xs font-mono"
+            onClick={handleOpenResetModal}
+            className="px-3.5 py-2 rounded-xl bg-red-950/40 border border-red-800 text-red-300 hover:bg-red-900/60 text-xs font-mono flex items-center gap-1.5 transition-colors"
           >
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
             Reset Demo Data
           </button>
           <button
@@ -308,32 +343,59 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
       {/* TAB 1: OVERVIEW & FINANCIAL METRICS */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Operations KPI Row */}
+          {/* Operations KPI Row 1: Registrations & Approvals */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-[#111420] border border-slate-800 rounded-xl p-5 font-mono">
               <span className="text-[10px] text-slate-400 uppercase block">TOTAL REGISTRATIONS</span>
-              <div className="text-3xl font-bold text-white mt-1">{teams.length} Teams</div>
-              <span className="text-xs text-slate-500 mt-1 block">{totalParticipants} student detectives</span>
+              <div className="text-3xl font-bold text-white mt-1">{stats.totalRegistrations} Teams</div>
+              <span className="text-xs text-slate-500 mt-1 block">{stats.totalParticipants} student detectives</span>
             </div>
 
             <div className="bg-[#111420] border border-emerald-500/30 rounded-xl p-5 font-mono">
               <span className="text-[10px] text-emerald-400 uppercase block">VERIFIED SQUADS</span>
-              <div className="text-3xl font-bold text-emerald-400 mt-1">{verifiedTeams.length}</div>
+              <div className="text-3xl font-bold text-emerald-400 mt-1">{stats.verifiedTeams}</div>
               <span className="text-xs text-slate-400 mt-1 block">Active clearance granted</span>
             </div>
 
             <div className="bg-[#111420] border border-amber-500/30 rounded-xl p-5 font-mono">
               <span className="text-[10px] text-amber-400 uppercase block">PENDING APPROVALS</span>
-              <div className="text-3xl font-bold text-amber-400 mt-1">{pendingTeams.length}</div>
+              <div className="text-3xl font-bold text-amber-400 mt-1">{stats.pendingApprovals}</div>
               <span className="text-xs text-slate-400 mt-1 block">Awaiting UPI match</span>
             </div>
 
             <div className="bg-[#111420] border border-cyan-500/30 rounded-xl p-5 font-mono">
               <span className="text-[10px] text-cyan-400 uppercase block">NET REAL PROFIT</span>
-              <div className={`text-3xl font-bold mt-1 ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                ₹{netProfit}
+              <div className={`text-3xl font-bold mt-1 ${stats.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                ₹{stats.netProfit}
               </div>
-              <span className="text-xs text-slate-400 mt-1 block">Revenue ₹{realRevenue} - Expenses ₹{totalExpenses}</span>
+              <span className="text-xs text-slate-400 mt-1 block">Revenue ₹{stats.verifiedRevenue} - Expenses ₹{stats.recordedExpenses}</span>
+            </div>
+          </div>
+
+          {/* Operations KPI Row 2: Live Game Status & Standings */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
+              <span className="text-[10px] text-slate-400 uppercase block">ACTIVE GAME CLOCKS</span>
+              <div className="text-2xl font-bold text-amber-400 mt-1">{stats.activeSessions} Running</div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Official 30m sessions live</span>
+            </div>
+
+            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
+              <span className="text-[10px] text-slate-400 uppercase block">COMPLETED MYSTERIES</span>
+              <div className="text-2xl font-bold text-emerald-400 mt-1">{stats.completedGames} Solved</div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Stage 5 cracked</span>
+            </div>
+
+            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
+              <span className="text-[10px] text-slate-400 uppercase block">LEADERBOARD TEAMS</span>
+              <div className="text-2xl font-bold text-white mt-1">{stats.leaderboardParticipants} Ranked</div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Official standings pool</span>
+            </div>
+
+            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
+              <span className="text-[10px] text-slate-400 uppercase block">RECORDED EXPENSES</span>
+              <div className="text-2xl font-bold text-red-400 mt-1">₹{stats.recordedExpenses}</div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">{expenses.length} receipts logged</span>
             </div>
           </div>
 
@@ -359,23 +421,23 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
               <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
                 <span className="text-slate-400 text-[10px] uppercase block">INITIAL SEED CAPITAL</span>
-                <span className="text-xl font-bold text-white mt-1 block">₹1,000</span>
+                <span className="text-xl font-bold text-white mt-1 block">₹{stats.initialCapital}</span>
                 <span className="text-[10px] text-slate-500">Allocated base budget</span>
               </div>
               <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
                 <span className="text-slate-400 text-[10px] uppercase block">CLOSING CASH ON HAND</span>
-                <span className="text-xl font-bold text-amber-400 mt-1 block">₹{1000 + netProfit}</span>
+                <span className="text-xl font-bold text-amber-400 mt-1 block">₹{stats.closingCash}</span>
                 <span className="text-[10px] text-slate-500">₹1,000 + Rev - Exp</span>
               </div>
               <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
                 <span className="text-slate-400 text-[10px] uppercase block">CAPITAL TO RETURN</span>
-                <span className="text-xl font-bold text-blue-400 mt-1 block">₹1,000</span>
+                <span className="text-xl font-bold text-blue-400 mt-1 block">₹{stats.capitalToReturn}</span>
                 <span className="text-[10px] text-slate-500">100% Principal payback</span>
               </div>
               <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
                 <span className="text-slate-400 text-[10px] uppercase block">RETAINED NET PROFIT</span>
-                <span className={`text-xl font-bold mt-1 block ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  ₹{netProfit}
+                <span className={`text-xl font-bold mt-1 block ${stats.retainedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ₹{stats.retainedProfit}
                 </span>
                 <span className="text-[10px] text-slate-500">Closing Cash - ₹1,000</span>
               </div>
@@ -753,6 +815,127 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* REQUIREMENT 8: RESET DEMO DATA MODAL */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0f131f] border border-red-500/40 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-950 border border-red-800/80 flex items-center justify-center text-red-400 shrink-0 shadow-glow-red">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                  Database & Demo Data Reset
+                </h3>
+                <span className="text-[11px] font-mono text-red-400">RESTRICTED CHIEF ORGANIZER PROCEDURE</span>
+              </div>
+            </div>
+
+            {/* Demo Records Breakdown */}
+            <div className="bg-[#141827] border border-slate-800 rounded-xl p-4 font-mono text-xs space-y-2">
+              <div className="text-slate-400 uppercase text-[10px] tracking-wider mb-2 font-bold">
+                Detected Records Audit
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Demo Teams Identified:</span>
+                <span className="text-amber-400 font-bold">{demoCounts.demoTeamsCount}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Demo Sessions Identified:</span>
+                <span className="text-amber-400 font-bold">{demoCounts.demoSessionsCount}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Demo Expenses Identified:</span>
+                <span className="text-amber-400 font-bold">{demoCounts.demoExpensesCount}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300 border-t border-slate-800/80 pt-2">
+                <span>Real Participant Squads:</span>
+                <span className="text-emerald-400 font-bold">{demoCounts.realTeamsCount} (Preserved in Selective Mode)</span>
+              </div>
+            </div>
+
+            {/* Mode Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-400 uppercase block">Reset Mode</label>
+              <div className="grid grid-cols-2 gap-2 font-mono text-xs">
+                <button
+                  type="button"
+                  onClick={() => setResetMode('clean_demo')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    resetMode === 'clean_demo'
+                      ? 'bg-amber-950/40 border-amber-500 text-amber-200'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold">Selective Purge</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Delete demo records only; keep real registrations</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResetMode('full_reset')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    resetMode === 'full_reset'
+                      ? 'bg-red-950/40 border-red-500 text-red-200'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold">Full Launch Reset</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Reset all to Day-1 clean 0-state</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Feedback / Error notices */}
+            {resetError && (
+              <div className="p-3 rounded-lg bg-red-950/80 border border-red-800 text-red-300 text-xs font-mono">
+                {resetError}
+              </div>
+            )}
+            {resetFeedback && (
+              <div className="p-3 rounded-lg bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs font-mono">
+                {resetFeedback}
+              </div>
+            )}
+
+            {/* Security Confirmation Input */}
+            <div className="space-y-2 font-mono">
+              <label className="block text-xs text-slate-300">
+                To confirm, type <strong className="text-red-400 select-all">RESET DEMO DATA</strong> below:
+              </label>
+              <input
+                type="text"
+                value={resetConfirmInput}
+                onChange={e => setResetConfirmInput(e.target.value)}
+                placeholder="RESET DEMO DATA"
+                disabled={Boolean(resetFeedback)}
+                className="w-full bg-[#111420] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono tracking-wider focus:outline-none focus:border-red-400"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                disabled={Boolean(resetFeedback)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteReset}
+                disabled={resetConfirmInput.trim() !== 'RESET DEMO DATA' || Boolean(resetFeedback)}
+                className="px-5 py-2.5 rounded-xl font-bold bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all shadow-glow-red flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Confirm & Wipe Demo Data
+              </button>
+            </div>
           </div>
         </div>
       )}

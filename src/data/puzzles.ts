@@ -1,4 +1,4 @@
-import { PuzzleStage, Suspect } from '../types';
+import { PuzzleStage, Suspect, Expense, LeaderboardEntry } from '../types';
 
 export const SUSPECTS: Suspect[] = [
   {
@@ -181,16 +181,22 @@ export const PUZZLE_STAGES: PuzzleStage[] = [
   }
 ];
 
-export const INITIAL_EXPENSES = [
-  { id: 'exp-1', title: 'Winner Prize (1st Place)', category: 'Prizes' as const, amount: 150, date: '2026-11-15' },
-  { id: 'exp-2', title: 'Runner-Up Prize (2nd Place)', category: 'Prizes' as const, amount: 100, date: '2026-11-15' },
-  { id: 'exp-3', title: 'Posters & QR Code Printing', category: 'Print & Media' as const, amount: 50, date: '2026-11-16' },
-  { id: 'exp-4', title: 'Internet & Data Hotspot', category: 'Internet & Ops' as const, amount: 100, date: '2026-11-16' },
-  { id: 'exp-5', title: 'Campus Marketing & WhatsApp Promo', category: 'Marketing' as const, amount: 50, date: '2026-11-16' },
-  { id: 'exp-6', title: 'Operational Contingency Reserve', category: 'Contingency' as const, amount: 150, date: '2026-11-16' }
+// Clean initial state for real launch: zero demo expenses and zero demo leaderboard records
+export const INITIAL_EXPENSES: Expense[] = [];
+
+export const SEED_LEADERBOARD: LeaderboardEntry[] = [];
+
+// Optional sample catalog retained strictly for development reference or test fixtures
+export const DEMO_SAMPLE_EXPENSES: Expense[] = [
+  { id: 'exp-demo-1', title: 'Winner Prize (1st Place)', category: 'Prizes' as const, amount: 150, date: '2026-11-15' },
+  { id: 'exp-demo-2', title: 'Runner-Up Prize (2nd Place)', category: 'Prizes' as const, amount: 100, date: '2026-11-15' },
+  { id: 'exp-demo-3', title: 'Posters & QR Code Printing', category: 'Print & Media' as const, amount: 50, date: '2026-11-16' },
+  { id: 'exp-demo-4', title: 'Internet & Data Hotspot', category: 'Internet & Ops' as const, amount: 100, date: '2026-11-16' },
+  { id: 'exp-demo-5', title: 'Campus Marketing & WhatsApp Promo', category: 'Marketing' as const, amount: 50, date: '2026-11-16' },
+  { id: 'exp-demo-6', title: 'Operational Contingency Reserve', category: 'Contingency' as const, amount: 150, date: '2026-11-16' }
 ];
 
-export const SEED_LEADERBOARD = [
+export const DEMO_SAMPLE_LEADERBOARD: LeaderboardEntry[] = [
   { rank: 1, teamId: 'CQ-8812', teamName: 'Cipher Detectives', score: 100, durationSeconds: 1122, durationFormatted: '18:42', stagesCompleted: 5, finishedAt: '10:45 AM' },
   { rank: 2, teamId: 'CQ-7204', teamName: 'Mystery Squad', score: 85, durationSeconds: 1275, durationFormatted: '21:15', stagesCompleted: 4, finishedAt: '10:52 AM' },
   { rank: 3, teamId: 'CQ-9301', teamName: 'Shadow Bureau', score: 70, durationSeconds: 1470, durationFormatted: '24:30', stagesCompleted: 3, finishedAt: '11:05 AM' },

@@ -33,44 +33,8 @@ export const DEFAULT_SETTINGS: AdminSettings = {
   upiName: 'Campus Quest Event Organizing Committee'
 };
 
-const SEED_TEAMS: Team[] = [
-  {
-    id: 'team-demo-01',
-    teamId: 'CQ-7777',
-    accessCode: 'DETECTIVE77',
-    teamName: 'Apex Sleuths',
-    leaderName: 'Aarav Gupta',
-    leaderEmail: 'aarav.sleuths@campus.edu',
-    leaderPhone: '+91 98765 43210',
-    college: 'Engineering Campus Institute',
-    department: 'Computer Science',
-    members: ['Aarav Gupta', 'Rohan Verma', 'Ananya Iyer'],
-    playerCount: 3,
-    totalAmount: 90,
-    paymentRef: 'UPI-REF-992817263541',
-    paymentStatus: 'VERIFIED',
-    registeredAt: new Date(Date.now() - 3600000).toISOString(),
-    verifiedAt: new Date(Date.now() - 3300000).toISOString()
-  },
-  {
-    id: 'team-demo-02',
-    teamId: 'CQ-8812',
-    accessCode: 'CIPHER88',
-    teamName: 'Cipher Detectives',
-    leaderName: 'Priya Nambiar',
-    leaderEmail: 'priya.n@campus.edu',
-    leaderPhone: '+91 98111 22233',
-    college: 'Tech University',
-    department: 'Information Science',
-    members: ['Priya Nambiar', 'Vikram Rao'],
-    playerCount: 2,
-    totalAmount: 60,
-    paymentRef: 'UPI-REF-771829103948',
-    paymentStatus: 'VERIFIED',
-    registeredAt: new Date(Date.now() - 7200000).toISOString(),
-    verifiedAt: new Date(Date.now() - 7000000).toISOString()
-  }
-];
+// Clean initial state: zero demo teams by default for real competition
+const SEED_TEAMS: Team[] = [];
 
 export interface AnswerSubmissionResult {
   success: boolean;
@@ -130,13 +94,13 @@ class ApiService {
 
     const raw = localStorage.getItem(STORAGE_KEYS.TEAMS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(SEED_TEAMS));
-      return SEED_TEAMS;
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
+      return [];
     }
     try {
       return JSON.parse(raw);
     } catch {
-      return SEED_TEAMS;
+      return [];
     }
   }
 
@@ -446,15 +410,7 @@ class ApiService {
 
     const entries: LeaderboardEntry[] = [];
 
-    // Include seed entries if empty
-    if (Object.keys(sessions).length === 0) {
-      return SEED_LEADERBOARD.map(e => ({
-        ...e,
-        isCurrentUser: e.teamId === currentTeamId
-      }));
-    }
-
-    // Process actual sessions
+    // Process actual sessions (no seed fake teams)
     for (const team of teams) {
       const s = sessions[team.teamId];
       if (!s || s.status === 'NOT_STARTED') continue;
@@ -499,13 +455,13 @@ class ApiService {
   public async getExpenses(): Promise<Expense[]> {
     const raw = localStorage.getItem(STORAGE_KEYS.EXPENSES);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(INITIAL_EXPENSES));
-      return INITIAL_EXPENSES;
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+      return [];
     }
     try {
       return JSON.parse(raw);
     } catch {
-      return INITIAL_EXPENSES;
+      return [];
     }
   }
 

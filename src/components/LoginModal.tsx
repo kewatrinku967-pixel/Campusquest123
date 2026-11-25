@@ -37,7 +37,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     const team = storage.getTeamByCredentials(teamId, accessCode);
     if (!team) {
-      setError('Invalid credentials. Double check your Team ID (e.g. CQ-7777) and Access Code.');
+      setError('Invalid credentials. Double check your assigned Team ID (e.g. CQ-2048) and confidential Access Code.');
       sound.playError();
       return;
     }
@@ -60,12 +60,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     sound.playSuccess();
     onSuccess(team);
     onClose();
-  };
-
-  const handleQuickDemo = (demoTeamId: string, demoAccessCode: string) => {
-    sound.playClick();
-    setTeamId(demoTeamId);
-    setAccessCode(demoAccessCode);
   };
 
   return (
@@ -112,7 +106,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               required
               value={teamId}
               onChange={e => setTeamId(e.target.value)}
-              placeholder="e.g. CQ-7777"
+              placeholder="e.g. CQ-2048"
               className="w-full bg-[#121622] border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 uppercase"
             />
           </div>
@@ -126,7 +120,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               required
               value={accessCode}
               onChange={e => setAccessCode(e.target.value)}
-              placeholder="e.g. DETECTIVE77"
+              placeholder="e.g. CIPHER42"
               className="w-full bg-[#121622] border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 uppercase"
             />
           </div>
@@ -140,33 +134,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </button>
         </form>
 
-        {/* Quick Demo Fill Buttons for Testing */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80">
-          <span className="text-[11px] font-mono text-slate-400 block mb-2 flex items-center gap-1">
-            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-            Instant Judge / Test Credentials:
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('CQ-7777', 'DETECTIVE77')}
-              className="px-2.5 py-2 rounded bg-slate-900 border border-slate-700 hover:border-amber-400 text-[11px] text-left transition-colors"
-            >
-              <div className="font-bold text-amber-400">CQ-7777 (Verified)</div>
-              <div className="text-[10px] text-slate-400 font-mono">Code: DETECTIVE77</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('CQ-1234', 'PENDING12')}
-              className="px-2.5 py-2 rounded bg-slate-900 border border-slate-700 hover:border-amber-400 text-[11px] text-left transition-colors"
-            >
-              <div className="font-bold text-orange-400">CQ-1234 (Pending)</div>
-              <div className="text-[10px] text-slate-400 font-mono">Code: PENDING12</div>
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center">
           <p className="text-xs text-slate-400">
             Don't have a team yet?{' '}
             <button

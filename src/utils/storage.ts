@@ -1,5 +1,5 @@
-import { Team, GameSession, Expense, AdminSettings, LeaderboardEntry, PaymentStatus } from '../types';
-import { INITIAL_EXPENSES, SEED_LEADERBOARD, PUZZLE_STAGES } from '../data/puzzles';
+import { Team, GameSession, Expense, AdminSettings, LeaderboardEntry } from '../types';
+import { PUZZLE_STAGES } from '../data/puzzles';
 
 const STORAGE_KEYS = {
   TEAMS: 'campus_quest_teams_v1',
@@ -29,12 +29,13 @@ const SERVER_ANSWER_KEYS: Record<number, string[]> = {
   5: ['MIRA|ARCHIVE_DRAFTS', 'MIRA SHARMA|ARCHIVE_DRAFTS']
 };
 
-export const SEED_TEAMS: Team[] = [
+// Optional sample catalog retained strictly for development reference or test fixtures
+export const DEMO_SAMPLE_TEAMS: Team[] = [
   {
     id: 'team-demo-01',
     teamId: 'CQ-7777',
     accessCode: 'DETECTIVE77',
-    teamName: 'Apex Sleuths',
+    teamName: 'Apex Sleuths (Demo)',
     leaderName: 'Aarav Gupta',
     leaderEmail: 'aarav.sleuths@campus.edu',
     leaderPhone: '+91 98765 43210',
@@ -52,7 +53,7 @@ export const SEED_TEAMS: Team[] = [
     id: 'team-demo-02',
     teamId: 'CQ-8812',
     accessCode: 'CIPHER88',
-    teamName: 'Cipher Detectives',
+    teamName: 'Cipher Detectives (Demo)',
     leaderName: 'Priya Nambiar',
     leaderEmail: 'priya.n@campus.edu',
     leaderPhone: '+91 98111 22233',
@@ -70,7 +71,7 @@ export const SEED_TEAMS: Team[] = [
     id: 'team-demo-03',
     teamId: 'CQ-1234',
     accessCode: 'PENDING12',
-    teamName: 'The Enigma Cadets',
+    teamName: 'The Enigma Cadets (Demo)',
     leaderName: 'Karan Mehra',
     leaderEmail: 'karan@campus.edu',
     leaderPhone: '+91 98444 55566',
@@ -86,17 +87,17 @@ export const SEED_TEAMS: Team[] = [
 ];
 
 class StorageManager {
-  // TEAMS
+  // TEAMS (Clean production: defaults to empty array)
   public getTeams(): Team[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.TEAMS);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(SEED_TEAMS));
-        return SEED_TEAMS;
+        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
+        return [];
       }
       return JSON.parse(data);
     } catch {
-      return SEED_TEAMS;
+      return [];
     }
   }
 
@@ -333,17 +334,17 @@ class StorageManager {
     };
   }
 
-  // EXPENSES
+  // EXPENSES (Clean production: defaults to empty array)
   public getExpenses(): Expense[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.EXPENSES);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(INITIAL_EXPENSES));
-        return INITIAL_EXPENSES;
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+        return [];
       }
       return JSON.parse(data);
     } catch {
-      return INITIAL_EXPENSES;
+      return [];
     }
   }
 
@@ -351,6 +352,13 @@ class StorageManager {
     const expenses = this.getExpenses();
     expenses.push(expense);
     localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
+  }
+
+  public deleteExpense(id: string): boolean {
+    const expenses = this.getExpenses();
+    const updated = expenses.filter(e => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
+    return true;
   }
 
   // FINANCIAL LEDGER SUMMARY (Exact collegiate formula)
@@ -395,7 +403,7 @@ class StorageManager {
     localStorage.setItem(STORAGE_KEYS.ADMIN_SETTINGS, JSON.stringify(settings));
   }
 
-  // LEADERBOARD COMPUTATION
+  // LEADERBOARD COMPUTATION (Strictly derived from real sessions, no seed duplicates)
   public getLeaderboard(currentTeamId?: string): LeaderboardEntry[] {
     const teams = this.getTeams();
     let sessionsData: Record<string, GameSession> = {};
@@ -405,7 +413,7 @@ class StorageManager {
 
     const entries: LeaderboardEntry[] = [];
 
-    // Real teams from sessions
+    // Real teams with valid game sessions
     for (const team of teams) {
       const session = sessionsData[team.teamId];
       if (session && session.startTime) {
@@ -428,16 +436,6 @@ class StorageManager {
       }
     }
 
-    // Add seed entries if not already present
-    for (const seed of SEED_LEADERBOARD) {
-      if (!entries.some(e => e.teamName.toLowerCase() === seed.teamName.toLowerCase())) {
-        entries.push({
-          ...seed,
-          isCurrentUser: currentTeamId === seed.teamId
-        });
-      }
-    }
-
     // Sort: Score DESC, then durationSeconds ASC
     entries.sort((a, b) => {
       if (b.score !== a.score) {
@@ -453,12 +451,152 @@ class StorageManager {
     }));
   }
 
-  public resetAllData() {
-    localStorage.removeItem(STORAGE_KEYS.TEAMS);
-    localStorage.removeItem(STORAGE_KEYS.GAME_SESSIONS);
-    localStorage.removeItem(STORAGE_KEYS.EXPENSES);
-    localStorage.removeItem(STORAGE_KEYS.ADMIN_SETTINGS);
+  // DEMO DATA DETECTION & SELECTIVE CLEANUP
+  public isDemoTeam(team: Team): boolean {
+    const demoCodes = ['CQ-7777', 'CQ-8812', 'CQ-1234'];
+    return (
+      demoCodes.includes(team.teamId.toUpperCase()) ||
+      team.id.startsWith('team-demo') ||
+      team.paymentRef.startsWith('UPI-REF-') ||
+      team.teamName.includes('(Demo)')
+    );
+  }
+
+  public getDemoRecordCounts() {
+    const teams = this.getTeams();
+    let sessions: Record<string, GameSession> = {};
+    try {
+      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
+    } catch {}
+    const expenses = this.getExpenses();
+
+    const demoTeams = teams.filter(t => this.isDemoTeam(t));
+    const demoTeamIds = new Set(demoTeams.map(t => t.teamId));
+    const demoSessions = Object.keys(sessions).filter(id => demoTeamIds.has(id));
+    const demoExpenses = expenses.filter(e => e.id.startsWith('exp-demo-') || e.id.startsWith('exp-'));
+
+    return {
+      demoTeamsCount: demoTeams.length,
+      demoSessionsCount: demoSessions.length,
+      demoExpensesCount: demoExpenses.length,
+      realTeamsCount: teams.length - demoTeams.length,
+      totalTeams: teams.length,
+      totalExpenses: expenses.length
+    };
+  }
+
+  // Remove strictly demo records, preserving any genuine registered teams
+  public cleanDemoData(): { deletedTeams: number; deletedSessions: number; deletedExpenses: number; preservedTeams: number } {
+    const teams = this.getTeams();
+    let sessions: Record<string, GameSession> = {};
+    try {
+      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
+    } catch {}
+    const expenses = this.getExpenses();
+
+    const demoTeams = teams.filter(t => this.isDemoTeam(t));
+    const realTeams = teams.filter(t => !this.isDemoTeam(t));
+    const demoTeamIds = new Set(demoTeams.map(t => t.teamId));
+
+    let deletedSessions = 0;
+    const cleanSessions: Record<string, GameSession> = {};
+    for (const [id, sess] of Object.entries(sessions)) {
+      if (demoTeamIds.has(id)) {
+        deletedSessions++;
+      } else {
+        cleanSessions[id] = sess;
+      }
+    }
+
+    const demoExpenses = expenses.filter(e => e.id.startsWith('exp-demo-') || e.id.startsWith('exp-'));
+    const realExpenses = expenses.filter(e => !e.id.startsWith('exp-demo-') && !e.id.startsWith('exp-'));
+
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(realTeams));
+    localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify(cleanSessions));
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(realExpenses));
+
+    // Clear active session if it was a demo team
+    const activeTeamId = this.getActiveTeamId();
+    if (activeTeamId && demoTeamIds.has(activeTeamId)) {
+      this.setActiveTeamId(null);
+    }
+
+    return {
+      deletedTeams: demoTeams.length,
+      deletedSessions,
+      deletedExpenses: demoExpenses.length,
+      preservedTeams: realTeams.length
+    };
+  }
+
+  // Complete atomic reset to clean state (Total Registrations: 0, Revenue: ₹0, Expenses: ₹0, Closing Cash: ₹1,000)
+  public resetToCleanState(): { success: boolean; clearedTeams: number; clearedSessions: number; clearedExpenses: number } {
+    const teams = this.getTeams();
+    let sessions: Record<string, GameSession> = {};
+    try {
+      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
+    } catch {}
+    const expenses = this.getExpenses();
+
+    const clearedTeams = teams.length;
+    const clearedSessions = Object.keys(sessions).length;
+    const clearedExpenses = expenses.length;
+
+    // Atomically write clean empty collections
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify({}));
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
     localStorage.removeItem(STORAGE_KEYS.CURRENT_TEAM_ID);
+
+    return {
+      success: true,
+      clearedTeams,
+      clearedSessions,
+      clearedExpenses
+    };
+  }
+
+  // Get dynamic dashboard counts
+  public getDashboardCounts() {
+    const teams = this.getTeams();
+    let sessions: Record<string, GameSession> = {};
+    try {
+      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
+    } catch {}
+
+    const verifiedTeams = teams.filter(t => t.paymentStatus === 'VERIFIED');
+    const pendingTeams = teams.filter(t => t.paymentStatus === 'PENDING');
+    
+    let activeSessionsCount = 0;
+    let completedGamesCount = 0;
+    for (const s of Object.values(sessions)) {
+      if (s.status === 'IN_PROGRESS') activeSessionsCount++;
+      if (s.status === 'COMPLETED') completedGamesCount++;
+    }
+
+    const leaderboard = this.getLeaderboard();
+    const fin = this.getFinanceSummary();
+
+    return {
+      totalRegistrations: teams.length,
+      verifiedTeams: verifiedTeams.length,
+      pendingApprovals: pendingTeams.length,
+      activeSessions: activeSessionsCount,
+      completedGames: completedGamesCount,
+      leaderboardParticipants: leaderboard.length,
+      verifiedRevenue: fin.realRevenue,
+      recordedExpenses: fin.totalExpenses,
+      netProfit: fin.netProfit,
+      initialCapital: fin.initialCapital,
+      closingCash: fin.closingCash,
+      capitalToReturn: fin.capitalToReturn,
+      retainedProfit: fin.retainedProfit,
+      totalParticipants: teams.reduce((acc, t) => acc + t.playerCount, 0)
+    };
+  }
+
+  public resetAllData() {
+    this.resetToCleanState();
   }
 }
 

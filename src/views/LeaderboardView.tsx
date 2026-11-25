@@ -194,58 +194,72 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ currentTeam, o
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {filtered.map((item) => (
-                <tr 
-                  key={item.teamId}
-                  className={`transition-colors ${
-                    item.isCurrentUser
-                      ? 'bg-amber-500/10 border-l-4 border-amber-400'
-                      : item.rank === 1
-                      ? 'bg-amber-950/20 hover:bg-amber-950/30'
-                      : 'hover:bg-slate-900/60'
-                  }`}
-                >
-                  <td className="py-4 px-4 text-center">
-                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs ${
-                      item.rank === 1 ? 'bg-amber-400 text-slate-950 shadow-glow-gold' :
-                      item.rank === 2 ? 'bg-slate-300 text-slate-950' :
-                      item.rank === 3 ? 'bg-amber-700 text-white' :
-                      'text-slate-400'
-                    }`}>
-                      {item.rank}
-                    </span>
-                  </td>
-
-                  <td className="py-4 px-4 font-sans font-bold text-white flex items-center gap-2">
-                    <span>{item.teamName}</span>
-                    {item.isCurrentUser && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold uppercase">
-                        YOUR TEAM
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-4 text-amber-400/90 font-bold">
-                    {item.teamId}
-                  </td>
-
-                  <td className="py-4 px-4 text-center text-slate-300">
-                    <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700">
-                      {item.stagesCompleted}/5
-                    </span>
-                  </td>
-
-                  <td className="py-4 px-4 text-center text-emerald-400 font-bold">
-                    {item.durationFormatted}
-                  </td>
-
-                  <td className="py-4 px-4 text-right">
-                    <span className="text-base font-bold text-amber-400">
-                      {item.score} <span className="text-xs text-slate-500">PTS</span>
-                    </span>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-2 text-slate-400 font-mono">
+                      <Trophy className="w-8 h-8 text-slate-600 mb-1" />
+                      <div className="text-sm font-bold text-slate-300">No Tournament Standings Yet</div>
+                      <p className="text-xs text-slate-500 max-w-sm">
+                        Detective squads will appear on this live board as soon as they complete their forensic investigation stages.
+                      </p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filtered.map((item) => (
+                  <tr 
+                    key={item.teamId}
+                    className={`transition-colors ${
+                      item.isCurrentUser
+                        ? 'bg-amber-500/10 border-l-4 border-amber-400'
+                        : item.rank === 1
+                        ? 'bg-amber-950/20 hover:bg-amber-950/30'
+                        : 'hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <td className="py-4 px-4 text-center">
+                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs ${
+                        item.rank === 1 ? 'bg-amber-400 text-slate-950 shadow-glow-gold' :
+                        item.rank === 2 ? 'bg-slate-300 text-slate-950' :
+                        item.rank === 3 ? 'bg-amber-700 text-white' :
+                        'text-slate-400'
+                      }`}>
+                        {item.rank}
+                      </span>
+                    </td>
+
+                    <td className="py-4 px-4 font-sans font-bold text-white flex items-center gap-2">
+                      <span>{item.teamName}</span>
+                      {item.isCurrentUser && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold uppercase">
+                          YOUR TEAM
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="py-4 px-4 text-amber-400/90 font-bold">
+                      {item.teamId}
+                    </td>
+
+                    <td className="py-4 px-4 text-center text-slate-300">
+                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700">
+                        {item.stagesCompleted}/5
+                      </span>
+                    </td>
+
+                    <td className="py-4 px-4 text-center text-emerald-400 font-bold">
+                      {item.durationFormatted}
+                    </td>
+
+                    <td className="py-4 px-4 text-right">
+                      <span className="text-base font-bold text-amber-400">
+                        {item.score} <span className="text-xs text-slate-500">PTS</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
