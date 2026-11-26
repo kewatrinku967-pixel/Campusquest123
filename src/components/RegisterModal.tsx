@@ -212,34 +212,37 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </div>
             </div>
 
-            <div className="bg-purple-950/60 border border-purple-500/70 rounded-xl p-3.5 text-xs text-purple-200 text-left flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-              <span>
-                <strong>Next Step:</strong> Save your Team ID and Access Code. The organizers will verify your UPI UTR reference (<code className="text-yellow-300 font-mono font-bold">{registeredTeam.paymentRef}</code>). Once approved, your team will have full clearance to start the game!
-              </span>
+            {/* Success Next Step Alert */}
+            <div className="bg-purple-950/80 border-2 border-yellow-400 rounded-2xl p-4 text-xs text-purple-200 text-left flex items-start gap-3 shadow-pixel-yellow">
+              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <strong className="text-white block font-arcade text-[11px] uppercase">
+                  Payment Reference Logged & Pending Verification
+                </strong>
+                <p className="text-slate-300 font-mono">
+                  Your UPI Reference (<code className="text-yellow-300 font-bold bg-black/60 px-2 py-0.5 rounded">{registeredTeam.paymentRef}</code>) has been submitted to the tournament backend.
+                  An organizer will verify the transaction. Once verified, the <strong>Start Game</strong> button will be unlocked in your Game Lobby!
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
-                onClick={async () => {
+                onClick={() => {
                   sound.playSuccess();
-                  await api.startGameSession(registeredTeam.teamId);
                   onSuccessLogin(registeredTeam);
                   onClose();
                 }}
                 className="flex-1 py-3.5 px-4 rounded-xl font-display font-black text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 transition-all flex items-center justify-center gap-2 text-sm shadow-glow-yellow"
               >
-                🎮 START CHALLENGE NOW ({registeredTeam.category === 'single' ? '15' : registeredTeam.category === 'duo' ? '25' : '40'} MINS FAST)
+                Proceed to Game Lobby
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button
-                onClick={() => {
-                  onSuccessLogin(registeredTeam);
-                  onClose();
-                }}
+                onClick={onClose}
                 className="py-3.5 px-4 rounded-xl text-slate-300 bg-[#151838] hover:bg-[#1f2452] border border-slate-700 text-sm transition-colors"
               >
-                Enter Game Lobby
+                Return to Fest Arena
               </button>
             </div>
           </div>
@@ -560,6 +563,14 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </div>
             </div>
 
+            {/* Error message displayed directly next to button so it's always in view */}
+            {error && (
+              <div className="p-3.5 rounded-xl bg-red-950/90 border-2 border-red-500 text-red-200 text-xs font-mono flex items-center gap-2 shadow-lg animate-pulse">
+                <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+                <span className="font-bold">{error}</span>
+              </div>
+            )}
+
             {/* Submit Buttons */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -571,11 +582,21 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </button>
               <button
                 type="submit"
+                onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-3.5 text-sm font-black font-display rounded-xl text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 shadow-glow-yellow transition-all transform hover:-translate-y-0.5 disabled:opacity-50 flex items-center gap-2"
+                className="px-8 py-3.5 text-sm font-black font-display rounded-xl text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 shadow-glow-yellow transition-all transform hover:-translate-y-0.5 disabled:opacity-50 flex items-center gap-2.5 cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" />
-                {isSubmitting ? 'Registering Squad...' : `Submit Application & Pay ₹${pricing.amountRupees}`}
+                {isSubmitting ? (
+                  <>
+                    <span className="animate-spin text-base">⏳</span>
+                    <span>Submitting Payment...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-slate-950" />
+                    <span>Payment Submitted</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

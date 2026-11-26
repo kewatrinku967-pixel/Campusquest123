@@ -163,6 +163,31 @@ class ApiService {
     return storage.updateTeamStatus(teamId, status, rejectionReason);
   }
 
+  // Submit payment reference for existing team
+  public async submitPayment(
+    teamId: string,
+    paymentRef: string,
+    paymentScreenshot?: string
+  ): Promise<{ success: boolean; team?: Team; error?: string }> {
+    const res = storage.submitPayment(teamId, paymentRef, paymentScreenshot);
+    if (!res.success) return res;
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('payments').upsert([{
+          upi_reference: paymentRef.trim().toUpperCase(),
+          amount_paise: res.team?.amountPaise || 7000,
+          status: 'pending',
+          screenshot_path: paymentScreenshot || null
+        }]);
+      } catch (err) {
+        console.warn('Supabase payment submit failed:', err);
+      }
+    }
+
+    return res;
+  }
+
   // Question Bank
   public async getPublicQuestion(id: string): Promise<PublicQuestion | undefined> {
     return storage.getPublicQuestion(id);
@@ -175,16 +200,25 @@ class ApiService {
 
   public async startGameSession(teamId: string): Promise<GameSession> {
     const session = storage.getGameSession(teamId);
-    const now = Date.now();
-    const updated: GameSession = {
-      ...session,
-      status: 'IN_PROGRESS',
-      startTime: now,
-      started_at: new Date(now).toISOString(),
-      deadlineTime: now + session.totalDurationSeconds * 1000
-    };
-    storage.saveGameSession(updated);
-    return updated;
+    if (session.status === 'NOT_STARTED') {
+      const now = Date.now();
+      session.status = 'IN_PROGRESS';
+      session.startTime = now;
+      session.started_at = new Date(now).toISOString();
+      session.deadlineTime = now + session.totalDurationSeconds * 1000;
+      storage.saveGameSession(session);
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('game_sessions').upsert([{
+            team_id: teamId,
+            status: 'active',
+            started_at: session.started_at
+          }]);
+        } catch {}
+      }
+    }
+    return session;
   }
 
   public async submitAnswer(teamId: string, questionId: string, answer: string): Promise<AnswerSubmissionResult> {

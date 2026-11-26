@@ -3,6 +3,11 @@ import {
   Question, PublicQuestion, ParticipationCategory, TimerPresetKey 
 } from '../types';
 import { QUESTION_BANK } from '../data/questions';
+import { 
+  MURDER_MYSTERY_QUESTIONS, 
+  MurderMysteryQuestion, 
+  getMurderMysteryQuestionById 
+} from '../data/murderMysteryQuestions';
 import { TIMER_PRESETS, CATEGORY_SPECS, calculateCategoryPrice } from './validators';
 
 const STORAGE_KEYS = {
@@ -41,7 +46,12 @@ class StorageManager {
         localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(QUESTION_BANK));
         return QUESTION_BANK;
       }
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed) || parsed.length < 70) {
+        localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(QUESTION_BANK));
+        return QUESTION_BANK;
+      }
+      return parsed;
     } catch {
       return QUESTION_BANK;
     }
@@ -72,9 +82,41 @@ class StorageManager {
     }
   }
 
+  public getMurderMysteryQuestions(): MurderMysteryQuestion[] {
+    return MURDER_MYSTERY_QUESTIONS;
+  }
+
   // Get sanitized question without private correct_answer & explanation
   public getPublicQuestion(id: string): PublicQuestion | undefined {
-    const q = this.getQuestions().find(item => item.id === id && item.isActive);
+    const mm = getMurderMysteryQuestionById(id);
+    if (mm) {
+      const pointsMap: Record<string, number> = {
+        'Easy': 10,
+        'Medium': 15,
+        'Hard': 20,
+        'Expert': 25,
+        'Detective Challenge': 30
+      };
+      return {
+        id: mm.id,
+        text: `[${mm.category.toUpperCase()}]\n${mm.scenario}\n\nINQUIRY: ${mm.question}`,
+        scenario: mm.scenario,
+        inquiry: mm.question,
+        optionsMap: mm.options,
+        difficulty: mm.difficulty,
+        category: mm.difficulty === 'Easy' ? 'single' : mm.difficulty === 'Medium' ? 'duo' : 'tribe',
+        answerType: 'multiple_choice',
+        options: [
+          `A. ${mm.options.A}`,
+          `B. ${mm.options.B}`,
+          `C. ${mm.options.C}`,
+          `D. ${mm.options.D}`
+        ],
+        points: pointsMap[mm.difficulty] || 10
+      };
+    }
+
+    const q = this.getQuestions().find(item => item.id === id && (item.isActive === true || item.isActive === undefined));
     if (!q) return undefined;
     return {
       id: q.id,
@@ -136,7 +178,14 @@ class StorageManager {
 
     if (status === 'VERIFIED') {
       // Check if UPI ref is already verified by another team
-      const duplicate = teams.find(t => t.teamId !== teamId && t.paymentStatus === 'VERIFIED' && t.paymentRef.trim().toUpperCase() === team.paymentRef.trim().toUpperCase());
+      const duplicate = teams.find(t => 
+        t.teamId !== teamId && 
+        t.paymentStatus === 'VERIFIED' && 
+        team.paymentRef && 
+        team.paymentRef.trim() !== '' &&
+        t.paymentRef && 
+        t.paymentRef.trim().toUpperCase() === team.paymentRef.trim().toUpperCase()
+      );
       if (duplicate) {
         return { success: false, error: `Cannot verify: UPI reference ${team.paymentRef} is already verified for team "${duplicate.teamName}".` };
       }
@@ -191,7 +240,7 @@ class StorageManager {
       const all: Record<string, GameSession> = JSON.parse(
         localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}'
       );
-      if (all[teamId]) {
+      if (all[teamId] && Array.isArray(all[teamId].assignedQuestionIds) && all[teamId].assignedQuestionIds.length > 0) {
         return all[teamId];
       }
     } catch {}
@@ -201,21 +250,33 @@ class StorageManager {
     const durationMinutes = preset.durations[category];
 
     // Select questions randomly once per session and save them permanently!
-    const allQuestions = this.getQuestions().filter(q => q.category === category && q.isActive);
     let assignedIds: string[] = [];
 
+    // Prioritize drawing from the 200 Murder Mystery database according to category difficulty!
     if (category === 'single') {
-      // Pick 10 random questions out of 20
-      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+      // Single: 10 random questions from Easy tier (40 questions in pool)
+      const easyMM = MURDER_MYSTERY_QUESTIONS.filter(q => q.difficulty === 'Easy');
+      const shuffled = [...easyMM].sort(() => Math.random() - 0.5);
       assignedIds = shuffled.slice(0, 10).map(q => q.id);
     } else if (category === 'duo') {
-      // Pick 20 questions in random order
-      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+      // Duo: 20 random questions from Medium & Hard tiers (90 questions in pool)
+      const duoMM = MURDER_MYSTERY_QUESTIONS.filter(q => q.difficulty === 'Medium' || q.difficulty === 'Hard');
+      const shuffled = [...duoMM].sort(() => Math.random() - 0.5);
       assignedIds = shuffled.slice(0, 20).map(q => q.id);
     } else {
-      // Tribe: pick 30 questions in random order
-      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+      // Tribe: 30 random questions from Hard, Expert & Detective Challenge (110 questions in pool)
+      const tribeMM = MURDER_MYSTERY_QUESTIONS.filter(q => q.difficulty === 'Hard' || q.difficulty === 'Expert' || q.difficulty === 'Detective Challenge');
+      const shuffled = [...tribeMM].sort(() => Math.random() - 0.5);
       assignedIds = shuffled.slice(0, 30).map(q => q.id);
+    }
+
+    // Fallback if needed
+    if (assignedIds.length === 0) {
+      let allQuestions = this.getQuestions().filter(q => q.category === category && (q.isActive === true || q.isActive === undefined));
+      if (allQuestions.length === 0) {
+        allQuestions = QUESTION_BANK.filter(q => q.category === category);
+      }
+      assignedIds = [...allQuestions].sort(() => Math.random() - 0.5).slice(0, spec.questionCount).map(q => q.id);
     }
 
     const newSession: GameSession = {
@@ -247,6 +308,33 @@ class StorageManager {
 
     this.saveGameSession(newSession);
     return newSession;
+  }
+
+  public submitPayment(teamId: string, paymentRef: string, paymentScreenshot?: string): { success: boolean; team?: Team; error?: string } {
+    const teams = this.getTeams();
+    const team = teams.find(t => t.teamId === teamId);
+    if (!team) return { success: false, error: 'Team not found' };
+
+    const ref = paymentRef.trim().toUpperCase();
+    if (ref.length < 8) {
+      return { success: false, error: 'Valid UPI Transaction Reference / UTR ID (minimum 8 characters) is required' };
+    }
+
+    // Check duplicate verified UPI
+    const duplicate = teams.find(t => t.teamId !== teamId && t.paymentStatus === 'VERIFIED' && t.paymentRef.trim().toUpperCase() === ref);
+    if (duplicate) {
+      return { success: false, error: `This UPI Reference is already verified for team "${duplicate.teamName}". Duplicate payments are not allowed.` };
+    }
+
+    team.paymentRef = ref;
+    if (paymentScreenshot) {
+      team.paymentScreenshot = paymentScreenshot;
+    }
+    team.paymentStatus = 'PENDING';
+    team.rejectionReason = undefined;
+
+    this.saveTeam(team);
+    return { success: true, team };
   }
 
   public saveGameSession(session: GameSession) {
@@ -310,10 +398,10 @@ class StorageManager {
     totalQuestions: number;
   } {
     const session = this.getGameSession(teamId);
-    const questions = this.getQuestions();
-    const question = questions.find(q => q.id === questionId);
+    const question = this.getQuestions().find(q => q.id === questionId);
+    const mm = getMurderMysteryQuestionById(questionId);
 
-    if (!question) {
+    if (!question && !mm) {
       return {
         success: false,
         isCorrect: false,
@@ -330,11 +418,38 @@ class StorageManager {
       session.correctAnswersMap = {};
     }
 
-    // Server-side check
     const normalizedUser = answer.trim().toUpperCase();
-    const normalizedCorrect = question.correctAnswer.trim().toUpperCase();
-    const isCorrect = normalizedUser === normalizedCorrect;
-    const points = isCorrect ? question.points : 0;
+    let isCorrect = false;
+    let explanation = '';
+    let points = 0;
+
+    if (mm) {
+      const pointsMap: Record<string, number> = {
+        'Easy': 10,
+        'Medium': 15,
+        'Hard': 20,
+        'Expert': 25,
+        'Detective Challenge': 30
+      };
+      const correctLetter = mm.correctAnswer.toUpperCase();
+      const correctOptionText = mm.options[mm.correctAnswer].trim().toUpperCase();
+
+      isCorrect = (
+        normalizedUser === correctLetter ||
+        normalizedUser.startsWith(correctLetter + '.') ||
+        normalizedUser.startsWith(correctLetter + ':') ||
+        normalizedUser.startsWith(correctLetter + ' ') ||
+        normalizedUser === correctOptionText ||
+        normalizedUser.includes(correctOptionText)
+      );
+      explanation = mm.explanation;
+      points = isCorrect ? (pointsMap[mm.difficulty] || 10) : 0;
+    } else if (question) {
+      const normalizedCorrect = question.correctAnswer.trim().toUpperCase();
+      isCorrect = normalizedUser === normalizedCorrect;
+      explanation = question.explanation;
+      points = isCorrect ? question.points : 0;
+    }
 
     // Prevent duplicate answer submissions from increasing scores
     const wasCorrectBefore = session.correctAnswersMap[questionId] === true;

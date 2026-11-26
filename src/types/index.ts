@@ -4,9 +4,44 @@ export type GameStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED'
 
 export type ParticipationCategory = 'single' | 'duo' | 'tribe';
 
-export type QuestionDifficulty = 'moderate' | 'little-hard' | 'hard';
+export type QuestionDifficulty = 'moderate' | 'little-hard' | 'hard' | 'easy' | 'medium' | 'expert' | 'detective_challenge';
 
 export type QuestionAnswerType = 'multiple_choice' | 'text' | 'numeric';
+
+export type MysteryDifficulty = 'Easy' | 'Medium' | 'Hard' | 'Expert' | 'Detective Challenge';
+
+export type MysteryCategory =
+  | 'Locked Room Murder'
+  | 'Poisoning Mystery'
+  | 'Crime Scene Investigation'
+  | 'Missing Evidence'
+  | 'Fake Alibis'
+  | 'CCTV Footage Investigation'
+  | 'Witness Statements'
+  | 'Hidden Clues'
+  | 'Time of Death Analysis'
+  | 'Suspicious Behaviour'
+  | 'Multiple Suspects'
+  | 'Psychological Detective Puzzles'
+  | 'Secret Relationships'
+  | 'Forensic Evidence'
+  | 'Unexpected Murderer Reveals';
+
+export interface MurderMysteryQuestion {
+  id: string;
+  category: MysteryCategory | string;
+  difficulty: MysteryDifficulty;
+  scenario: string;
+  question: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
+  correctAnswer: 'A' | 'B' | 'C' | 'D';
+  explanation: string;
+}
 
 export type TimerPresetKey = 'option_a' | 'option_b' | 'option_c';
 
@@ -25,9 +60,12 @@ export interface TimerPresetConfig {
 export interface Question {
   id: string;
   text: string;
-  difficulty: QuestionDifficulty;
-  category: ParticipationCategory;
-  answerType: QuestionAnswerType;
+  scenario?: string;
+  inquiry?: string;
+  optionsMap?: { A: string; B: string; C: string; D: string };
+  difficulty: QuestionDifficulty | string;
+  category: ParticipationCategory | string;
+  answerType: QuestionAnswerType | string;
   options?: string[];
   correctAnswer: string; // Server/backend private answer key
   explanation: string;
@@ -39,9 +77,12 @@ export interface Question {
 export interface PublicQuestion {
   id: string;
   text: string;
-  difficulty: QuestionDifficulty;
-  category: ParticipationCategory;
-  answerType: QuestionAnswerType;
+  scenario?: string;
+  inquiry?: string;
+  optionsMap?: { A: string; B: string; C: string; D: string };
+  difficulty: QuestionDifficulty | string;
+  category: ParticipationCategory | string;
+  answerType: QuestionAnswerType | string;
   options?: string[];
   points: number;
 }

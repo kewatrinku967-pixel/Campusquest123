@@ -8,6 +8,7 @@ import {
 import { storage } from '../utils/storage';
 import { sound } from '../utils/sound';
 import { QUESTION_BANK } from '../data/questions';
+import { MURDER_MYSTERY_QUESTIONS, MurderMysteryQuestion } from '../data/murderMysteryQuestions';
 import { Team, Expense, AdminSettings, Question, ParticipationCategory, TimerPresetKey } from '../types';
 import { TIMER_PRESETS, CATEGORY_SPECS, calculateCategoryPrice } from '../utils/validators';
 
@@ -34,6 +35,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
   const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | ParticipationCategory>('all');
   const [questionCategoryFilter, setQuestionCategoryFilter] = useState<'all' | ParticipationCategory>('all');
   const [questionSearch, setQuestionSearch] = useState('');
+
+  // Murder Mystery 200 Questions Filter States
+  const [selectedQuestionDataset, setSelectedQuestionDataset] = useState<'murder_mystery' | 'fest_questions'>('murder_mystery');
+  const [mysteryDifficultyFilter, setMysteryDifficultyFilter] = useState<'all' | string>('all');
+  const [mysteryCategoryFilter, setMysteryCategoryFilter] = useState<'all' | string>('all');
+  const [mysterySearch, setMysterySearch] = useState('');
 
   // New Question Form state
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
@@ -170,15 +177,19 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
   // CSV Export functions
   const exportCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
     sound.playClick();
-    const csvContent = 'data:text/csv;charset=utf-8,' + 
-      [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvRows = [
+      headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(','),
+      ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\r\n');
+    const blob = new Blob([csvRows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (!isAuthenticated) {
@@ -273,6 +284,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     return true;
   });
 
+  // Murder Mystery 200 Questions filter
+  const filteredMysteryQuestions = MURDER_MYSTERY_QUESTIONS.filter(q => {
+    if (mysteryDifficultyFilter !== 'all' && q.difficulty !== mysteryDifficultyFilter) return false;
+    if (mysteryCategoryFilter !== 'all' && q.category !== mysteryCategoryFilter) return false;
+    if (mysterySearch.trim()) {
+      const s = mysterySearch.toLowerCase();
+      return (
+        q.id.toLowerCase().includes(s) ||
+        q.scenario.toLowerCase().includes(s) ||
+        q.question.toLowerCase().includes(s) ||
+        q.category.toLowerCase().includes(s) ||
+        q.options.A.toLowerCase().includes(s) ||
+        q.options.B.toLowerCase().includes(s) ||
+        q.options.C.toLowerCase().includes(s) ||
+        q.options.D.toLowerCase().includes(s)
+      );
+    }
+    return true;
+  });
+
   // Filtered teams
   const filteredTeams = teams.filter(t => {
     if (teamCategoryFilter !== 'all' && t.category !== teamCategoryFilter) return false;
@@ -325,7 +356,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
           { id: 'payments', label: `💳 Payment Approvals (${pendingTeams.length} Pending)` },
           { id: 'leaderboard', label: '🏆 Percentage Leaderboard' },
           { id: 'timer', label: `⏱️ Timer Presets (${TIMER_PRESETS[settings.selectedTimerPreset]?.badge || 'FAST'})` },
-          { id: 'questions', label: `❓ 70-Question Bank (${questions.length})` },
+          { id: 'questions', label: `🎯 200 Murder Mysteries & Questions (${MURDER_MYSTERY_QUESTIONS.length + questions.length})` },
           { id: 'finances', label: '💰 Budget & Ledger' },
           { id: 'reports', label: '📥 CSV Export Reports' }
         ].map(t => (
@@ -834,10 +865,181 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
         </div>
       )}
 
-      {/* TAB 5: QUESTION BANK (70 QUESTIONS) */}
+      {/* TAB 5: QUESTION BANK & 200 MURDER MYSTERY DATABASE */}
       {activeTab === 'questions' && (
-        <div className="space-y-4 font-mono text-xs">
-          <div className="p-4 bg-[#090a16] rounded-2xl border-2 border-purple-500/80 flex flex-wrap justify-between items-center gap-3">
+        <div className="space-y-6 font-mono text-xs">
+          
+          {/* Dataset Switcher Pills */}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedQuestionDataset('murder_mystery')}
+              className={`px-5 py-3 rounded-2xl font-display font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                selectedQuestionDataset === 'murder_mystery'
+                  ? 'bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 text-slate-950 shadow-glow-yellow'
+                  : 'bg-[#151838] text-slate-300 border border-slate-700 hover:border-yellow-400'
+              }`}
+            >
+              <span>🔍 200 Murder Mystery Puzzles Database</span>
+              <span className="px-2 py-0.5 rounded-full bg-slate-950/40 text-[10px] font-mono">
+                {MURDER_MYSTERY_QUESTIONS.length} Questions
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedQuestionDataset('fest_questions')}
+              className={`px-5 py-3 rounded-2xl font-display font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                selectedQuestionDataset === 'fest_questions'
+                  ? 'bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 text-slate-950 shadow-glow-yellow'
+                  : 'bg-[#151838] text-slate-300 border border-slate-700 hover:border-yellow-400'
+              }`}
+            >
+              <span>⚡ Campus Quest Questions Pool</span>
+              <span className="px-2 py-0.5 rounded-full bg-slate-950/40 text-[10px] font-mono">
+                {questions.length} Questions
+              </span>
+            </button>
+          </div>
+
+          {/* 1. MURDER MYSTERY 200 QUESTIONS BROWSER */}
+          {selectedQuestionDataset === 'murder_mystery' && (
+            <div className="space-y-4">
+              {/* Filter bar */}
+              <div className="p-4 bg-[#090a16] rounded-2xl border-2 border-yellow-400/80 flex flex-wrap justify-between items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-yellow-300 uppercase text-[11px]">DIFFICULTY:</span>
+                    <select
+                      value={mysteryDifficultyFilter}
+                      onChange={e => setMysteryDifficultyFilter(e.target.value)}
+                      className="bg-[#151838] border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-mono"
+                    >
+                      <option value="all">All Difficulties (200)</option>
+                      <option value="Easy">Easy (40 Qs)</option>
+                      <option value="Medium">Medium (50 Qs)</option>
+                      <option value="Hard">Hard (40 Qs)</option>
+                      <option value="Expert">Expert (40 Qs)</option>
+                      <option value="Detective Challenge">Detective Challenge (30 Qs)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-pink-300 uppercase text-[11px]">CATEGORY:</span>
+                    <select
+                      value={mysteryCategoryFilter}
+                      onChange={e => setMysteryCategoryFilter(e.target.value)}
+                      className="bg-[#151838] border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-mono max-w-xs truncate"
+                    >
+                      <option value="all">All 15 Mystery Categories</option>
+                      <option value="Locked Room Murder">Locked Room Murder</option>
+                      <option value="Poisoning Mystery">Poisoning Mystery</option>
+                      <option value="Crime Scene Investigation">Crime Scene Investigation</option>
+                      <option value="Missing Evidence">Missing Evidence</option>
+                      <option value="Fake Alibis">Fake Alibis</option>
+                      <option value="CCTV Footage Investigation">CCTV Footage Investigation</option>
+                      <option value="Witness Statements">Witness Statements</option>
+                      <option value="Hidden Clues">Hidden Clues</option>
+                      <option value="Time of Death Analysis">Time of Death Analysis</option>
+                      <option value="Suspicious Behaviour">Suspicious Behaviour</option>
+                      <option value="Multiple Suspects">Multiple Suspects</option>
+                      <option value="Psychological Detective Puzzles">Psychological Detective Puzzles</option>
+                      <option value="Secret Relationships">Secret Relationships</option>
+                      <option value="Forensic Evidence">Forensic Evidence</option>
+                      <option value="Unexpected Murderer Reveals">Unexpected Murderer Reveals</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={mysterySearch}
+                    onChange={e => setMysterySearch(e.target.value)}
+                    placeholder="Search scenarios, clues, options..."
+                    className="bg-[#151838] border border-slate-700 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 w-56 text-xs font-mono"
+                  />
+                  <span className="text-yellow-400 font-bold whitespace-nowrap">
+                    {filteredMysteryQuestions.length} Found
+                  </span>
+                </div>
+              </div>
+
+              {/* Questions Cards Grid */}
+              <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-1">
+                {filteredMysteryQuestions.map(q => (
+                  <div key={q.id} className="p-5 rounded-2xl bg-[#151838] border border-purple-900/80 space-y-3 shadow-lg">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-purple-950 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded bg-purple-950 border border-purple-500 text-yellow-300 font-bold font-mono text-xs">
+                          {q.id}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded bg-pink-950 border border-pink-500 text-pink-300 font-bold text-[10px] uppercase">
+                          {q.category}
+                        </span>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                        q.difficulty === 'Easy' ? 'bg-emerald-950 text-emerald-400 border-emerald-700' :
+                        q.difficulty === 'Medium' ? 'bg-blue-950 text-blue-400 border-blue-700' :
+                        q.difficulty === 'Hard' ? 'bg-yellow-950 text-yellow-300 border-yellow-700' :
+                        q.difficulty === 'Expert' ? 'bg-purple-950 text-purple-300 border-purple-700' :
+                        'bg-red-950 text-red-300 border-red-700'
+                      }`}>
+                        {q.difficulty}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-[#090a16] rounded-xl border border-slate-800 text-xs text-slate-200 space-y-1">
+                      <strong className="text-yellow-400 block text-[10px] uppercase">Scenario:</strong>
+                      <p className="leading-relaxed">{q.scenario}</p>
+                    </div>
+
+                    <div>
+                      <strong className="text-pink-400 block text-[10px] uppercase mb-0.5">Forensic Inquiry:</strong>
+                      <p className="text-white text-xs font-bold">{q.question}</p>
+                    </div>
+
+                    {/* 4 Options */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {(['A', 'B', 'C', 'D'] as const).map(letter => {
+                        const isCorrect = q.correctAnswer === letter;
+                        return (
+                          <div
+                            key={letter}
+                            className={`p-2.5 rounded-lg border text-[11px] flex items-start gap-2 ${
+                              isCorrect
+                                ? 'bg-emerald-950/70 border-emerald-500 text-emerald-300 font-bold'
+                                : 'bg-[#090a16] border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <span className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                              isCorrect ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {letter}
+                            </span>
+                            <span className="leading-tight mt-0.5">{q.options[letter]}</span>
+                            {isCorrect && (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 ml-auto" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-purple-950/40 border border-purple-900/60 text-[11px] text-purple-200">
+                      <strong className="text-yellow-300">Explanation: </strong>
+                      <span>{q.explanation}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 2. CAMPUS QUEST 70 QUESTIONS POOL */}
+          {selectedQuestionDataset === 'fest_questions' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-[#090a16] rounded-2xl border-2 border-purple-500/80 flex flex-wrap justify-between items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="font-bold text-white uppercase">FILTER:</span>
               <select
@@ -1017,6 +1219,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
           </div>
         </div>
       )}
+    </div>
+  )}
 
       {/* TAB 6: BUDGET & EXPENSES */}
       {activeTab === 'finances' && (
@@ -1107,7 +1311,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
 
       {/* TAB 7: CSV EXPORT REPORTS */}
       {activeTab === 'reports' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 font-mono text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 font-mono text-xs">
           <div className="p-6 rounded-3xl bg-[#151838] border-2 border-purple-500 text-center space-y-4">
             <FileText className="w-8 h-8 text-yellow-400 mx-auto" />
             <h4 className="font-display font-bold text-white text-base">Squad Registry CSV</h4>
@@ -1153,6 +1357,34 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
               className="w-full py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-bold"
             >
               <Download className="w-4 h-4 inline mr-1" /> Export Questions CSV
+            </button>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-[#151838] border-2 border-emerald-400 text-center space-y-4">
+            <Shield className="w-8 h-8 text-emerald-400 mx-auto" />
+            <h4 className="font-display font-bold text-white text-base">200 Murder Mystery CSV</h4>
+            <p className="text-slate-400 text-xs">Download full 200 Murder Mystery puzzle database with scenarios and clues.</p>
+            <button
+              onClick={() => {
+                const headers = ['Question ID', 'Category', 'Difficulty', 'Scenario', 'Inquiry Question', 'Option A', 'Option B', 'Option C', 'Option D', 'Correct Answer', 'Explanation'];
+                const rows = MURDER_MYSTERY_QUESTIONS.map(q => [
+                  q.id,
+                  q.category,
+                  q.difficulty,
+                  q.scenario,
+                  q.question,
+                  q.options.A,
+                  q.options.B,
+                  q.options.C,
+                  q.options.D,
+                  q.correctAnswer,
+                  q.explanation
+                ]);
+                exportCSV('chaos_200_murder_mystery_puzzles.csv', headers, rows);
+              }}
+              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
+            >
+              <Download className="w-4 h-4 inline mr-1" /> Export 200 Mysteries CSV
             </button>
           </div>
         </div>

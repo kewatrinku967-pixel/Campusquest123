@@ -100,6 +100,7 @@ export function App() {
             onOpenLogin={() => setIsLoginOpen(true)}
             onOpenRegister={() => handleOpenRegisterWithCategory('duo', 2)}
             onGoToLeaderboard={() => setCurrentView('leaderboard')}
+            onTeamUpdate={(updatedTeam) => setActiveTeam(updatedTeam)}
           />
         )}
 
