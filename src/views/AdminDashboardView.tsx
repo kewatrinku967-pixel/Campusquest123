@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   Lock, Shield, CheckCircle2, XCircle, AlertTriangle, Users, 
   DollarSign, TrendingUp, Settings, Plus, RefreshCw, KeyRound, 
-  ToggleLeft, ToggleRight, Megaphone, Trash2, FileText, ArrowRight, X
+  ToggleLeft, ToggleRight, Megaphone, Trash2, FileText, ArrowRight,
+  Clock, Download, Search, Eye, Filter, Check, Edit, X, HelpCircle
 } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { sound } from '../utils/sound';
-import { PUZZLE_STAGES } from '../data/puzzles';
-import { Team, Expense, AdminSettings } from '../types';
+import { QUESTION_BANK } from '../data/questions';
+import { Team, Expense, AdminSettings, Question, ParticipationCategory, TimerPresetKey } from '../types';
+import { TIMER_PRESETS, CATEGORY_SPECS, calculateCategoryPrice } from '../utils/validators';
 
 interface AdminDashboardViewProps {
   onBackToApp: () => void;
@@ -22,11 +24,28 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
   const [teams, setTeams] = useState<Team[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AdminSettings>(storage.getAdminSettings());
-  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'finances' | 'game_control' | 'puzzles'>('overview');
+  const [questions, setQuestions] = useState<Question[]>(storage.getQuestions());
+  
+  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'payments' | 'sessions' | 'timer' | 'questions' | 'finances' | 'reports'>('overview');
+
+  // Filters
+  const [teamCategoryFilter, setTeamCategoryFilter] = useState<'all' | ParticipationCategory>('all');
+  const [teamStatusFilter, setTeamStatusFilter] = useState<'all' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('all');
+  const [questionCategoryFilter, setQuestionCategoryFilter] = useState<'all' | ParticipationCategory>('all');
+  const [questionSearch, setQuestionSearch] = useState('');
+
+  // New Question Form state
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [newQText, setNewQText] = useState('');
+  const [newQCategory, setNewQCategory] = useState<ParticipationCategory>('single');
+  const [newQDifficulty, setNewQDifficulty] = useState<'moderate' | 'little-hard' | 'hard'>('moderate');
+  const [newQOptions, setNewQOptions] = useState<string>('Option A\nOption B\nOption C\nOption D');
+  const [newQCorrectAnswer, setNewQCorrectAnswer] = useState('');
+  const [newQExplanation, setNewQExplanation] = useState('');
 
   // New Expense form
   const [newExpTitle, setNewExpTitle] = useState('');
-  const [newExpCategory, setNewExpCategory] = useState<'Prizes' | 'Print & Media' | 'Internet & Ops' | 'Marketing' | 'Contingency'>('Marketing');
+  const [newExpCategory, setNewExpCategory] = useState<'Operations' | 'Print & Media' | 'Internet & Infrastructure' | 'Marketing' | 'Contingency'>('Operations');
   const [newExpAmount, setNewExpAmount] = useState<string>('');
 
   // Announcement edit
@@ -38,6 +57,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     const s = storage.getAdminSettings();
     setSettings(s);
     setAnnouncementText(s.emergencyNotice);
+    setQuestions(storage.getQuestions());
   };
 
   useEffect(() => {
@@ -61,12 +81,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
   // Team Verification Action
   const handleVerifyPayment = (teamId: string) => {
     sound.playSuccess();
-    storage.updateTeamStatus(teamId, 'VERIFIED');
+    const res = storage.updateTeamStatus(teamId, 'VERIFIED');
+    if (!res.success) {
+      alert(res.error);
+    }
     refreshAll();
   };
 
   const handleRejectPayment = (teamId: string) => {
-    const reason = prompt('Enter rejection reason for participant:', 'Invalid UPI Transaction / UTR ref');
+    const reason = prompt('Enter rejection reason for participant:', 'UPI Reference not found on bank statement.');
     if (reason !== null) {
       sound.playError();
       storage.updateTeamStatus(teamId, 'REJECTED', reason);
@@ -74,57 +97,33 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     }
   };
 
-  // Admin Game Session Controls
-  const handleStartGame = (teamId: string) => {
-    sound.playSuccess();
-    const res = storage.adminStartGame(teamId);
-    if (!res.success) {
-      alert(res.error || 'Failed to start game session');
-    }
-    refreshAll();
-  };
+  // Add Question
+  const handleCreateQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQText.trim() || !newQCorrectAnswer.trim()) return;
 
-  const handleExpireGame = (teamId: string) => {
-    if (confirm('Force expire game session for this squad?')) {
-      sound.playError();
-      storage.adminExpireGame(teamId);
-      refreshAll();
-    }
-  };
-
-  // CSV Report Export
-  const handleExportCSV = () => {
     sound.playClick();
-    const rows = [
-      ['Team Code', 'Team Name', 'Leader', 'Email', 'Phone', 'College', 'Players', 'Amount', 'Payment Ref', 'Payment Status', 'Game Status', 'Score', 'Completed Stages', 'Registered At'],
-      ...teams.map(t => {
-        const sess = storage.getGameSession(t.teamId);
-        return [
-          t.teamId,
-          t.teamName,
-          t.leaderName,
-          t.leaderEmail,
-          t.leaderPhone,
-          t.college,
-          t.playerCount,
-          t.totalAmount,
-          t.paymentRef,
-          t.paymentStatus,
-          sess.status,
-          sess.score,
-          sess.completedStages.length,
-          t.registeredAt
-        ];
-      })
-    ];
-    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `campus_quest_report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const opts = newQOptions.split('\n').map(o => o.trim()).filter(Boolean);
+    const newQ: Question = {
+      id: `q-custom-${Date.now()}`,
+      text: newQText.trim(),
+      category: newQCategory,
+      difficulty: newQDifficulty,
+      answerType: 'multiple_choice',
+      options: opts,
+      correctAnswer: newQCorrectAnswer.trim(),
+      explanation: newQExplanation.trim() || 'Official solution verified by committee.',
+      points: newQCategory === 'duo' ? 5 : 10,
+      isActive: true,
+      createdAt: new Date().toISOString()
+    };
+
+    storage.saveQuestion(newQ);
+    setIsAddingQuestion(false);
+    setNewQText('');
+    setNewQCorrectAnswer('');
+    setNewQExplanation('');
+    refreshAll();
   };
 
   // Add Expense
@@ -147,7 +146,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     refreshAll();
   };
 
-  // Save Settings
+  // Change Timer Preset
+  const handleSelectPreset = (key: TimerPresetKey) => {
+    sound.playClick();
+    const updated = { ...settings, selectedTimerPreset: key };
+    storage.saveAdminSettings(updated);
+    setSettings(updated);
+  };
+
+  // Save Announcement Settings
   const handleSaveSettings = () => {
     sound.playSuccess();
     const updated = {
@@ -156,70 +163,44 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
     };
     storage.saveAdminSettings(updated);
     setSettings(updated);
-    alert('Settings successfully updated and broadcasted!');
+    alert('Settings updated and broadcasted successfully!');
   };
 
-  // Reset demo modal state (Requirement 8)
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [resetConfirmInput, setResetConfirmInput] = useState('');
-  const [resetMode, setResetMode] = useState<'clean_demo' | 'full_reset'>('clean_demo');
-  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
-  const [resetError, setResetError] = useState<string | null>(null);
-
-  const handleOpenResetModal = () => {
+  // CSV Export functions
+  const exportCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
     sound.playClick();
-    setResetConfirmInput('');
-    setResetError(null);
-    setResetFeedback(null);
-    setIsResetModalOpen(true);
-  };
-
-  const handleExecuteReset = () => {
-    if (resetConfirmInput.trim() !== 'RESET DEMO DATA') {
-      sound.playError();
-      setResetError('Confirmation text mismatch. You must type "RESET DEMO DATA" exactly as shown.');
-      return;
-    }
-
-    sound.playSuccess();
-    setResetError(null);
-
-    if (resetMode === 'clean_demo') {
-      const res = storage.cleanDemoData();
-      setResetFeedback(`✓ Selective cleanup complete: Removed ${res.deletedTeams} demo squads, ${res.deletedSessions} demo sessions, and ${res.deletedExpenses} demo expenses. Preserved ${res.preservedTeams} real student registrations.`);
-    } else {
-      const res = storage.resetToCleanState();
-      setResetFeedback(`✓ Complete launch reset: Purged ${res.clearedTeams} teams, ${res.clearedSessions} sessions, and ${res.clearedExpenses} expenses. Dashboard is now in a pristine 0-state ready for Day 1 registrations.`);
-    }
-
-    refreshAll();
-    setTimeout(() => {
-      setIsResetModalOpen(false);
-      setResetFeedback(null);
-    }, 2400);
+    const csvContent = 'data:text/csv;charset=utf-8,' + 
+      [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto my-20 p-8 rounded-2xl bg-[#0e111a] border border-[#232b3d] shadow-2xl text-center space-y-6">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center mx-auto text-red-400 shadow-glow-red">
+      <div className="max-w-md mx-auto my-20 p-8 rounded-3xl bg-[#0f1124] border-2 border-purple-500/80 shadow-2xl text-center space-y-6">
+        <div className="w-16 h-16 rounded-2xl bg-purple-950 border-2 border-yellow-400 flex items-center justify-center mx-auto text-yellow-400 shadow-glow-yellow">
           <Lock className="w-8 h-8" />
         </div>
 
         <div>
-          <span className="classified-stamp text-xs text-red-400 border-red-500 bg-red-950/40">
-            CHIEF ORGANIZER ONLY
+          <span className="text-[10px] font-arcade px-3 py-1 rounded bg-purple-950 text-purple-300 border border-purple-500 uppercase tracking-widest font-bold">
+            ORGANIZER CLEARANCE
           </span>
-          <h2 className="text-2xl font-display font-bold text-white mt-2">
-            Organizer Command Center
+          <h2 className="text-2xl font-display font-black text-white mt-2">
+            Control Bureau Authentication
           </h2>
-          <p className="text-xs font-mono text-slate-400 mt-1">
-            Enter authorized master administrator passcode to manage payments, live timers, and financial analytics.
+          <p className="text-xs font-mono text-purple-200 mt-1">
+            Enter master organizer passcode to access payment queues, timer presets, question bank, and financial ledger.
           </p>
         </div>
 
         {pinError && (
-          <div className="p-3 rounded-lg bg-red-950/80 border border-red-800 text-red-300 text-xs font-mono flex items-center gap-2 text-left">
+          <div className="p-3.5 rounded-xl bg-red-950/90 border border-red-500 text-red-200 text-xs font-mono flex items-center gap-2 text-left">
             <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{pinError}</span>
           </div>
@@ -227,8 +208,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
 
         <form onSubmit={handlePinSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-mono text-slate-400 uppercase text-left mb-1">
-              Admin Passcode
+            <label className="block text-xs font-mono text-slate-400 uppercase text-left mb-1 font-bold">
+              Master Admin Passcode
             </label>
             <input
               type="password"
@@ -237,13 +218,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
               value={pinInput}
               onChange={e => setPinInput(e.target.value)}
               placeholder="e.g. campusquest2026"
-              className="w-full bg-[#121622] border border-slate-700 rounded-xl px-4 py-3 text-sm text-center text-white tracking-widest focus:outline-none focus:border-red-400 font-mono"
+              className="w-full bg-[#151838] border-2 border-slate-700 rounded-xl px-4 py-3 text-sm text-center text-yellow-300 tracking-widest focus:outline-none focus:border-yellow-400 font-mono font-bold"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-3 px-4 rounded-xl font-bold text-white bg-red-600 hover:bg-red-500 transition-colors shadow-glow-red text-sm"
+            className="w-full py-3.5 px-4 rounded-xl font-display font-black text-slate-950 bg-yellow-400 hover:bg-yellow-300 transition-colors shadow-glow-yellow text-sm"
           >
             Authenticate Control Bureau
           </button>
@@ -252,65 +233,83 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
         <div className="pt-2">
           <button
             onClick={() => { sound.playClick(); onBackToApp(); }}
-            className="text-xs font-mono text-slate-400 hover:text-slate-300"
+            className="text-xs font-mono text-slate-400 hover:text-slate-200"
           >
-            ← Return to Public Website
+            ← Return to Fest Website
           </button>
         </div>
       </div>
     );
   }
 
-  // Dynamic Dashboard Stats directly derived from live database / storage state
-  const stats = storage.getDashboardCounts();
-  const demoCounts = storage.getDemoRecordCounts();
-
+  // Financial calculations
   const verifiedTeams = teams.filter(t => t.paymentStatus === 'VERIFIED');
   const pendingTeams = teams.filter(t => t.paymentStatus === 'PENDING');
+  
+  const singleCount = teams.filter(t => t.category === 'single').length;
+  const duoCount = teams.filter(t => t.category === 'duo').length;
+  const tribeCount = teams.filter(t => t.category === 'tribe').length;
+
   const totalParticipants = teams.reduce((acc, t) => acc + t.playerCount, 0);
 
-  const realRevenue = stats.verifiedRevenue;
-  const totalExpenses = stats.recordedExpenses;
-  const netProfit = stats.netProfit;
+  // Financial Model:
+  // Revenue = sum of verified payments only. Pending payments DO NOT count.
+  const verifiedRevenue = verifiedTeams.reduce((acc, t) => acc + t.totalAmount, 0);
+  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+  const netProfit = verifiedRevenue - totalExpenses;
+  const initialCapital = settings.initialCapital || 1000;
+  const closingCash = initialCapital + verifiedRevenue - totalExpenses;
+  const capitalToReturn = initialCapital;
+  const retainedProfit = closingCash - initialCapital;
+
+  // Question bank filters
+  const filteredQuestions = questions.filter(q => {
+    if (questionCategoryFilter !== 'all' && q.category !== questionCategoryFilter) return false;
+    if (questionSearch.trim()) {
+      const s = questionSearch.toLowerCase();
+      return q.text.toLowerCase().includes(s) || q.correctAnswer.toLowerCase().includes(s);
+    }
+    return true;
+  });
+
+  // Filtered teams
+  const filteredTeams = teams.filter(t => {
+    if (teamCategoryFilter !== 'all' && t.category !== teamCategoryFilter) return false;
+    if (teamStatusFilter !== 'all' && t.paymentStatus !== teamStatusFilter) return false;
+    return true;
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
       {/* Top Banner */}
-      <div className="bg-[#111420] border border-[#232b3d] rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-[#151838] border-2 border-purple-500/80 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="classified-stamp text-xs text-red-400 border-red-500">
+            <span className="text-[9px] font-arcade px-2 py-0.5 rounded bg-pink-950 text-pink-300 border border-pink-500 font-bold uppercase">
               ORGANIZER CONTROL BUREAU
             </span>
-            <span className="text-xs font-mono text-slate-400">AUTHORIZED ACCESS</span>
+            <span className="text-xs font-mono text-yellow-300 font-bold">CHAOS: PLOT TWIST</span>
           </div>
-          <h2 className="text-3xl font-display font-extrabold text-white">
-            Campus Quest Event Operations
+          <h2 className="text-3xl font-display font-black text-white">
+            Campus Fest Operations & Control
           </h2>
-          <p className="text-xs font-mono text-slate-400 mt-0.5">
-            Real-time participant approvals, financial audit ledger, and live game session monitoring.
+          <p className="text-xs font-mono text-purple-200 mt-0.5">
+            Payee: <strong className="text-white">{settings.upiName}</strong> | UPI: <code className="text-yellow-300">{settings.upiId}</code>
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={refreshAll}
-            className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-xs font-mono flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-[#090a16] border border-slate-700 text-slate-200 hover:text-white text-xs font-mono flex items-center gap-1.5"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+            <RefreshCw className="w-3.5 h-3.5 text-yellow-400" />
             Refresh
           </button>
           <button
-            onClick={handleOpenResetModal}
-            className="px-3.5 py-2 rounded-xl bg-red-950/40 border border-red-800 text-red-300 hover:bg-red-900/60 text-xs font-mono flex items-center gap-1.5 transition-colors"
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-            Reset Demo Data
-          </button>
-          <button
             onClick={() => { sound.playClick(); onBackToApp(); }}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-mono"
+            className="px-4 py-2 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-white text-xs font-mono border border-purple-500 font-bold"
           >
             Exit Admin
           </button>
@@ -318,21 +317,23 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3 font-mono text-xs">
+      <div className="flex flex-wrap gap-2 border-b-2 border-[#2a2f5a] pb-3 font-mono text-xs">
         {[
-          { id: 'overview', label: '📊 Financial & Operations KPIs' },
-          { id: 'teams', label: `👥 Team Registry & Payments (${pendingTeams.length} Pending)` },
-          { id: 'finances', label: '💰 Budget & Expense Ledger' },
-          { id: 'game_control', label: '🎮 Event Master Controls' },
-          { id: 'puzzles', label: '🔍 Mystery & Puzzle Editor' }
+          { id: 'overview', label: '📊 Financial & Ops Overview' },
+          { id: 'teams', label: `👥 Squad Registry (${teams.length})` },
+          { id: 'payments', label: `💳 Payment Approvals (${pendingTeams.length} Pending)` },
+          { id: 'timer', label: `⏱️ Timer Presets (${TIMER_PRESETS[settings.selectedTimerPreset]?.badge || 'STANDARD'})` },
+          { id: 'questions', label: `❓ 70-Question Bank (${questions.length})` },
+          { id: 'finances', label: '💰 Budget & Ledger' },
+          { id: 'reports', label: '📥 CSV Export Reports' }
         ].map(t => (
           <button
             key={t.id}
             onClick={() => { sound.playClick(); setActiveTab(t.id as any); }}
-            className={`px-4 py-2 rounded-xl font-bold transition-colors ${
+            className={`px-4 py-2 rounded-xl font-bold transition-all ${
               activeTab === t.id
-                ? 'bg-amber-400 text-slate-950 shadow-glow-gold'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-yellow-400 text-slate-950 border-2 border-yellow-400 shadow-glow-yellow'
+                : 'bg-[#151838] text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
             {t.label}
@@ -340,304 +341,560 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
         ))}
       </div>
 
-      {/* TAB 1: OVERVIEW & FINANCIAL METRICS */}
+      {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Operations KPI Row 1: Registrations & Approvals */}
+          {/* Operations KPI Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-[#111420] border border-slate-800 rounded-xl p-5 font-mono">
-              <span className="text-[10px] text-slate-400 uppercase block">TOTAL REGISTRATIONS</span>
-              <div className="text-3xl font-bold text-white mt-1">{stats.totalRegistrations} Teams</div>
-              <span className="text-xs text-slate-500 mt-1 block">{stats.totalParticipants} student detectives</span>
+            <div className="bg-[#151838] border-2 border-purple-500/60 rounded-2xl p-5 font-mono">
+              <span className="text-[10px] text-purple-300 uppercase block font-bold">TOTAL REGISTRATIONS</span>
+              <div className="text-3xl font-black text-white mt-1 font-display">{teams.length} Squads</div>
+              <span className="text-xs text-slate-400 mt-1 block">{totalParticipants} student participants</span>
             </div>
 
-            <div className="bg-[#111420] border border-emerald-500/30 rounded-xl p-5 font-mono">
-              <span className="text-[10px] text-emerald-400 uppercase block">VERIFIED SQUADS</span>
-              <div className="text-3xl font-bold text-emerald-400 mt-1">{stats.verifiedTeams}</div>
-              <span className="text-xs text-slate-400 mt-1 block">Active clearance granted</span>
+            <div className="bg-[#151838] border-2 border-emerald-500/60 rounded-2xl p-5 font-mono">
+              <span className="text-[10px] text-emerald-400 uppercase block font-bold">VERIFIED SQUADS</span>
+              <div className="text-3xl font-black text-emerald-400 mt-1 font-display">{verifiedTeams.length}</div>
+              <span className="text-xs text-slate-400 mt-1 block">Active clearance to play</span>
             </div>
 
-            <div className="bg-[#111420] border border-amber-500/30 rounded-xl p-5 font-mono">
-              <span className="text-[10px] text-amber-400 uppercase block">PENDING APPROVALS</span>
-              <div className="text-3xl font-bold text-amber-400 mt-1">{stats.pendingApprovals}</div>
+            <div className="bg-[#151838] border-2 border-pink-500/60 rounded-2xl p-5 font-mono">
+              <span className="text-[10px] text-pink-400 uppercase block font-bold">PENDING APPROVALS</span>
+              <div className="text-3xl font-black text-pink-400 mt-1 font-display">{pendingTeams.length}</div>
               <span className="text-xs text-slate-400 mt-1 block">Awaiting UPI match</span>
             </div>
 
-            <div className="bg-[#111420] border border-cyan-500/30 rounded-xl p-5 font-mono">
-              <span className="text-[10px] text-cyan-400 uppercase block">NET REAL PROFIT</span>
-              <div className={`text-3xl font-bold mt-1 ${stats.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                ₹{stats.netProfit}
-              </div>
-              <span className="text-xs text-slate-400 mt-1 block">Revenue ₹{stats.verifiedRevenue} - Expenses ₹{stats.recordedExpenses}</span>
+            <div className="bg-[#151838] border-2 border-yellow-400 rounded-2xl p-5 font-mono shadow-glow-yellow">
+              <span className="text-[10px] text-yellow-300 uppercase block font-bold">VERIFIED REVENUE</span>
+              <div className="text-3xl font-black text-yellow-400 mt-1 font-display">₹{verifiedRevenue}</div>
+              <span className="text-xs text-slate-400 mt-1 block">Sum of verified only</span>
             </div>
           </div>
 
-          {/* Operations KPI Row 2: Live Game Status & Standings */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
-              <span className="text-[10px] text-slate-400 uppercase block">ACTIVE GAME CLOCKS</span>
-              <div className="text-2xl font-bold text-amber-400 mt-1">{stats.activeSessions} Running</div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Official 30m sessions live</span>
-            </div>
-
-            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
-              <span className="text-[10px] text-slate-400 uppercase block">COMPLETED MYSTERIES</span>
-              <div className="text-2xl font-bold text-emerald-400 mt-1">{stats.completedGames} Solved</div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Stage 5 cracked</span>
-            </div>
-
-            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
-              <span className="text-[10px] text-slate-400 uppercase block">LEADERBOARD TEAMS</span>
-              <div className="text-2xl font-bold text-white mt-1">{stats.leaderboardParticipants} Ranked</div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Official standings pool</span>
-            </div>
-
-            <div className="bg-[#111420] border border-slate-800 rounded-xl p-4 font-mono">
-              <span className="text-[10px] text-slate-400 uppercase block">RECORDED EXPENSES</span>
-              <div className="text-2xl font-bold text-red-400 mt-1">₹{stats.recordedExpenses}</div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">{expenses.length} receipts logged</span>
-            </div>
-          </div>
-
-          {/* Exact Collegiate Ledger from Blueprint */}
-          <div className="bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          {/* Category Participation Breakdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-[#151838] border border-purple-500 flex items-center justify-between">
               <div>
-                <h3 className="font-display font-bold text-lg text-white">
-                  Official Event Capital & Retained Profit Ledger
-                </h3>
-                <p className="text-xs font-mono text-slate-400">
-                  Live reconciliation based exclusively on verified squad payments and recorded operational receipts.
-                </p>
+                <span className="text-[10px] font-arcade text-purple-300 uppercase block">SINGLE (₹70)</span>
+                <span className="text-2xl font-bold text-white font-display">{singleCount} Participants</span>
               </div>
-              <button
-                onClick={handleExportCSV}
-                className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs font-mono transition-colors"
-              >
-                📥 Export CSV Audit
-              </button>
+              <span className="text-xs font-mono font-bold text-yellow-300">10 Qs</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
-              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
-                <span className="text-slate-400 text-[10px] uppercase block">INITIAL SEED CAPITAL</span>
-                <span className="text-xl font-bold text-white mt-1 block">₹{stats.initialCapital}</span>
-                <span className="text-[10px] text-slate-500">Allocated base budget</span>
+            <div className="p-4 rounded-2xl bg-[#151838] border border-pink-500 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-arcade text-pink-300 uppercase block">DUO (₹70 TOTAL)</span>
+                <span className="text-2xl font-bold text-white font-display">{duoCount} Teams</span>
               </div>
-              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
-                <span className="text-slate-400 text-[10px] uppercase block">CLOSING CASH ON HAND</span>
-                <span className="text-xl font-bold text-amber-400 mt-1 block">₹{stats.closingCash}</span>
-                <span className="text-[10px] text-slate-500">₹1,000 + Rev - Exp</span>
+              <span className="text-xs font-mono font-bold text-yellow-300">20 Qs</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#151838] border border-yellow-400 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-arcade text-yellow-300 uppercase block">TRIBE (₹50/PER)</span>
+                <span className="text-2xl font-bold text-white font-display">{tribeCount} Squads</span>
               </div>
-              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
-                <span className="text-slate-400 text-[10px] uppercase block">CAPITAL TO RETURN</span>
-                <span className="text-xl font-bold text-blue-400 mt-1 block">₹{stats.capitalToReturn}</span>
-                <span className="text-[10px] text-slate-500">100% Principal payback</span>
-              </div>
-              <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800">
-                <span className="text-slate-400 text-[10px] uppercase block">RETAINED NET PROFIT</span>
-                <span className={`text-xl font-bold mt-1 block ${stats.retainedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  ₹{stats.retainedProfit}
+              <span className="text-xs font-mono font-bold text-yellow-300">30 Qs</span>
+            </div>
+          </div>
+
+          {/* Exact Financial Formula Model Card */}
+          <div className="bg-[#151838] border-2 border-yellow-400 rounded-3xl p-6 sm:p-8 space-y-4">
+            <div className="flex justify-between items-center border-b border-purple-900 pb-3">
+              <div>
+                <span className="text-xs font-arcade text-yellow-300 uppercase font-bold">
+                  CAMPUS FEST FINANCIAL AUDIT FORMULA
                 </span>
-                <span className="text-[10px] text-slate-500">Closing Cash - ₹1,000</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Revenue Scenario Comparison (For College Judges & Faculty) */}
-          <div className="bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="font-display font-bold text-lg text-white">
-                  Collegiate Business Model & Projections
+                <h3 className="text-2xl font-display font-black text-white mt-1">
+                  Official Balance & Retained Profit
                 </h3>
-                <p className="text-xs font-mono text-slate-400">
-                  Benchmarked against ₹600 operational budget (₹250 prizes, ₹50 print, ₹100 data, ₹50 promo, ₹150 contingency)
-                </p>
               </div>
-              <span className="classified-stamp text-[10px] text-amber-400 border-amber-500">
-                CAMPUS VALIDATION
+              <span className="text-xs font-arcade px-3 py-1 rounded bg-yellow-400 text-slate-950 font-black">
+                ₹1,000 BASELINE
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
-              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-slate-400 font-bold uppercase block">CONSERVATIVE (8 TEAMS)</span>
-                <div className="text-xl font-bold text-slate-300">Revenue: ₹720</div>
-                <div className="text-emerald-400 font-bold">Projected Net: +₹120</div>
-                <p className="text-[11px] text-slate-500">Breaks even on costs and validates player interest.</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
+              <div className="bg-[#090a16] p-4 rounded-2xl border border-slate-700">
+                <span className="text-slate-400 uppercase text-[10px] block">INITIAL CAPITAL</span>
+                <span className="text-2xl font-bold text-white mt-1 block">₹{initialCapital}</span>
+                <span className="text-[10px] text-slate-500">Fund baseline</span>
               </div>
 
-              <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/40 space-y-2">
-                <span className="text-amber-400 font-bold uppercase block">TARGET MODEL (15 TEAMS)</span>
-                <div className="text-2xl font-bold text-amber-300">Revenue: ₹1,350</div>
-                <div className="text-emerald-400 font-bold text-base">Projected Net: +₹750 PROFIT</div>
-                <p className="text-[11px] text-slate-300">High sustainability with 125% return on invested budget.</p>
+              <div className="bg-[#090a16] p-4 rounded-2xl border border-slate-700">
+                <span className="text-slate-400 uppercase text-[10px] block">TOTAL EXPENSES</span>
+                <span className="text-2xl font-bold text-red-400 mt-1 block">₹{totalExpenses}</span>
+                <span className="text-[10px] text-slate-500">Recorded ledger</span>
               </div>
 
-              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-slate-400 font-bold uppercase block">OPTIMISTIC (25 TEAMS)</span>
-                <div className="text-xl font-bold text-slate-300">Revenue: ₹2,250</div>
-                <div className="text-emerald-400 font-bold">Projected Net: +₹1,650</div>
-                <p className="text-[11px] text-slate-500">Allows expanded championship edition prize pool.</p>
+              <div className="bg-[#090a16] p-4 rounded-2xl border border-slate-700">
+                <span className="text-slate-400 uppercase text-[10px] block">CLOSING CASH</span>
+                <span className="text-2xl font-bold text-yellow-300 mt-1 block">₹{closingCash}</span>
+                <span className="text-[10px] text-slate-400">₹1,000 + Rev - Exp</span>
               </div>
+
+              <div className="bg-[#090a16] p-4 rounded-2xl border border-emerald-500/60">
+                <span className="text-emerald-400 uppercase text-[10px] block font-bold">RETAINED PROFIT</span>
+                <span className={`text-2xl font-black mt-1 block ${retainedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ₹{retainedProfit}
+                </span>
+                <span className="text-[10px] text-slate-400">Closing Cash - ₹1,000</span>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-purple-950/60 rounded-xl border border-purple-500/40 text-[11px] font-mono text-purple-200">
+              💡 <strong>Compliance Note:</strong> Only verified UPI transactions are counted as revenue. Pending submissions are isolated to avoid premature financial reporting.
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: TEAM REGISTRY & PAYMENTS */}
+      {/* TAB 2: TEAMS */}
       {activeTab === 'teams' && (
-        <div className="bg-[#111420] border border-[#232b3d] rounded-2xl overflow-hidden shadow-2xl">
-          <div className="p-4 bg-[#0b0e17] border-b border-slate-800 flex flex-wrap justify-between items-center gap-3 text-xs font-mono">
-            <div>
-              <span className="font-bold text-slate-300 uppercase block">
-                REGISTERED SQUADS ({teams.length} TOTAL)
-              </span>
-              <span className="text-amber-400 text-[11px]">
-                Verify UPI UTR & initiate 30-minute official game session clocks
-              </span>
+        <div className="bg-[#151838] border-2 border-purple-500/80 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="p-4 bg-[#090a16] border-b border-purple-900/80 flex flex-wrap justify-between items-center gap-3 text-xs font-mono">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white uppercase">FILTER:</span>
+              <select
+                value={teamCategoryFilter}
+                onChange={e => setTeamCategoryFilter(e.target.value as any)}
+                className="bg-[#151838] border border-slate-700 rounded-lg px-2.5 py-1 text-white"
+              >
+                <option value="all">All Categories</option>
+                <option value="single">Single Only</option>
+                <option value="duo">Duo Only</option>
+                <option value="tribe">Tribe Only</option>
+              </select>
+
+              <select
+                value={teamStatusFilter}
+                onChange={e => setTeamStatusFilter(e.target.value as any)}
+                className="bg-[#151838] border border-slate-700 rounded-lg px-2.5 py-1 text-white"
+              >
+                <option value="all">All Statuses</option>
+                <option value="PENDING">Pending Only</option>
+                <option value="VERIFIED">Verified Only</option>
+                <option value="REJECTED">Rejected Only</option>
+              </select>
             </div>
-            <button
-              onClick={handleExportCSV}
-              className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors"
-            >
-              📥 Export CSV Report
-            </button>
+
+            <span className="text-yellow-300 font-bold">
+              Showing {filteredTeams.length} Squads
+            </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left font-mono text-xs">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
-                  <th className="py-3 px-4">TEAM / ID</th>
+                <tr className="border-b border-purple-900/80 text-purple-300 uppercase text-[11px]">
+                  <th className="py-3 px-4">SQUAD / ID</th>
+                  <th className="py-3 px-4">CATEGORY</th>
                   <th className="py-3 px-4">LEADER CONTACT</th>
                   <th className="py-3 px-4">MEMBERS</th>
                   <th className="py-3 px-4">UPI UTR REF</th>
-                  <th className="py-3 px-4">AMOUNT</th>
-                  <th className="py-3 px-4">PAYMENT</th>
-                  <th className="py-3 px-4">GAME CLOCK</th>
+                  <th className="py-3 px-4">FEE</th>
+                  <th className="py-3 px-4">STATUS</th>
                   <th className="py-3 px-4 text-right">ACTION</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
-                {teams.map((t) => {
-                  const sess = storage.getGameSession(t.teamId);
-                  return (
-                    <tr key={t.id} className="hover:bg-slate-900/50">
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-white font-sans">{t.teamName}</div>
-                        <div className="text-amber-400 text-[11px]">{t.teamId}</div>
-                        <div className="text-slate-500 text-[10px]">Passcode: {t.accessCode}</div>
-                      </td>
+              <tbody className="divide-y divide-purple-950/60">
+                {filteredTeams.map((t) => (
+                  <tr key={t.id} className="hover:bg-purple-950/30">
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-white font-sans">{t.teamName}</div>
+                      <div className="text-yellow-400 text-[11px] font-bold">{t.teamId}</div>
+                      <div className="text-slate-400 text-[10px]">Passcode: {t.accessCode}</div>
+                    </td>
 
-                      <td className="py-3.5 px-4 text-slate-300">
-                        <div>{t.leaderName}</div>
-                        <div className="text-slate-500 text-[11px]">{t.leaderPhone}</div>
-                        <div className="text-slate-500 text-[10px]">{t.college}</div>
-                      </td>
+                    <td className="py-3.5 px-4">
+                      <span className="text-[10px] font-arcade px-2 py-0.5 rounded bg-purple-950 border border-purple-500 text-purple-300 uppercase font-bold">
+                        {t.category}
+                      </span>
+                    </td>
 
-                      <td className="py-3.5 px-4 text-slate-400">
-                        <span className="text-white font-bold">{t.playerCount} Players</span>
-                        <div className="text-[10px] text-slate-500 max-w-xs truncate">
-                          {t.members.join(', ')}
-                        </div>
-                      </td>
+                    <td className="py-3.5 px-4 text-slate-300">
+                      <div>{t.leaderName}</div>
+                      <div className="text-slate-400 text-[11px]">{t.leaderPhone}</div>
+                      <div className="text-slate-500 text-[10px]">{t.college}</div>
+                    </td>
 
-                      <td className="py-3.5 px-4">
-                        <code className="text-amber-300 font-bold bg-black/40 px-2 py-1 rounded border border-slate-800 text-[11px]">
-                          {t.paymentRef}
-                        </code>
-                      </td>
+                    <td className="py-3.5 px-4 text-slate-300">
+                      <span className="text-white font-bold">{t.playerCount} Players</span>
+                      <div className="text-[10px] text-slate-400 max-w-xs truncate">
+                        {t.members.join(', ')}
+                      </div>
+                    </td>
 
-                      <td className="py-3.5 px-4 font-bold text-white">
-                        ₹{t.totalAmount}
-                      </td>
+                    <td className="py-3.5 px-4">
+                      <code className="text-yellow-300 font-bold bg-black/50 px-2 py-1 rounded border border-purple-900 text-[11px]">
+                        {t.paymentRef}
+                      </code>
+                    </td>
 
-                      <td className="py-3.5 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          t.paymentStatus === 'VERIFIED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                          t.paymentStatus === 'REJECTED' ? 'bg-red-950 text-red-400 border border-red-800' :
-                          'bg-orange-950 text-orange-400 border border-orange-800'
-                        }`}>
-                          {t.paymentStatus}
-                        </span>
-                      </td>
+                    <td className="py-3.5 px-4 font-bold text-yellow-400">
+                      ₹{t.totalAmount}
+                    </td>
 
-                      <td className="py-3.5 px-4">
-                        {t.paymentStatus !== 'VERIFIED' ? (
-                          <span className="text-slate-500 text-[10px]">Awaiting Payment</span>
-                        ) : sess.status === 'NOT_STARTED' ? (
-                          <span className="text-amber-400 text-[10px] font-bold">Ready to Launch</span>
-                        ) : sess.status === 'IN_PROGRESS' ? (
-                          <span className="text-cyan-400 text-[10px] font-bold flex items-center gap-1 animate-pulse">
-                            ⏱ Running ({sess.score} pts)
-                          </span>
-                        ) : sess.status === 'COMPLETED' ? (
-                          <span className="text-emerald-400 text-[10px] font-bold">✓ Solved ({sess.score}/100)</span>
-                        ) : (
-                          <span className="text-red-400 text-[10px] font-bold">Expired</span>
-                        )}
-                      </td>
+                    <td className="py-3.5 px-4">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        t.paymentStatus === 'VERIFIED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                        t.paymentStatus === 'REJECTED' ? 'bg-red-950 text-red-400 border border-red-800' :
+                        'bg-orange-950 text-orange-400 border border-orange-800'
+                      }`}>
+                        {t.paymentStatus}
+                      </span>
+                    </td>
 
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        {t.paymentStatus !== 'VERIFIED' ? (
-                          <>
-                            <button
-                              onClick={() => handleVerifyPayment(t.teamId)}
-                              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors"
-                            >
-                              Verify & Clear
-                            </button>
-                            {t.paymentStatus !== 'REJECTED' && (
-                              <button
-                                onClick={() => handleRejectPayment(t.teamId)}
-                                className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] transition-colors"
-                              >
-                                Reject
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {sess.status === 'NOT_STARTED' && (
-                              <button
-                                onClick={() => handleStartGame(t.teamId)}
-                                className="px-2.5 py-1 rounded bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-[11px] shadow-glow-gold transition-colors"
-                              >
-                                ▶ Start 30m Clock
-                              </button>
-                            )}
-                            {sess.status === 'IN_PROGRESS' && (
-                              <button
-                                onClick={() => handleExpireGame(t.teamId)}
-                                className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] transition-colors"
-                              >
-                                Force Expire
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                    <td className="py-3.5 px-4 text-right space-x-2">
+                      {t.paymentStatus !== 'VERIFIED' && (
+                        <button
+                          onClick={() => handleVerifyPayment(t.teamId)}
+                          className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px]"
+                        >
+                          Verify
+                        </button>
+                      )}
+                      {t.paymentStatus !== 'REJECTED' && (
+                        <button
+                          onClick={() => handleRejectPayment(t.teamId)}
+                          className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-[11px]"
+                        >
+                          Reject
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* TAB 3: BUDGET & EXPENSES */}
+      {/* TAB 3: PAYMENT VERIFICATION QUEUE */}
+      {activeTab === 'payments' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-[#090a16] rounded-2xl border-2 border-yellow-400 flex justify-between items-center font-mono text-xs">
+            <span className="font-bold text-yellow-300 uppercase">
+              PENDING VERIFICATION QUEUE ({pendingTeams.length} SQUADS)
+            </span>
+            <span className="text-slate-400">
+              Cross-check 12-digit UTR on UPI Statement for 7247066469@ptyes
+            </span>
+          </div>
+
+          {pendingTeams.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-[#151838] border-2 border-[#2a2f5a] font-mono text-xs text-slate-400">
+              🎉 All pending payments have been cleared! No pending verifications.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pendingTeams.map((pt) => (
+                <div key={pt.id} className="p-6 rounded-2xl bg-[#151838] border-2 border-yellow-500/60 font-mono text-xs space-y-4">
+                  <div className="flex justify-between items-start border-b border-purple-900 pb-2">
+                    <div>
+                      <h4 className="font-display font-black text-white text-base">{pt.teamName}</h4>
+                      <span className="text-yellow-400 font-bold">{pt.teamId} // {pt.category.toUpperCase()} ({pt.playerCount} Detectives)</span>
+                    </div>
+                    <span className="text-xl font-display font-black text-yellow-400">₹{pt.totalAmount}</span>
+                  </div>
+
+                  <div className="space-y-1.5 text-slate-300">
+                    <p>• Leader: <strong>{pt.leaderName}</strong> ({pt.leaderPhone})</p>
+                    <p>• College: {pt.college}</p>
+                    <p>• UPI Reference: <code className="text-yellow-300 font-bold text-sm bg-black/60 px-2 py-0.5 rounded">{pt.paymentRef}</code></p>
+                  </div>
+
+                  {pt.paymentScreenshot && (
+                    <div className="pt-2">
+                      <span className="text-[10px] text-slate-400 uppercase block mb-1">Receipt Screenshot:</span>
+                      <img 
+                        src={pt.paymentScreenshot} 
+                        alt="Payment Proof" 
+                        className="max-h-40 rounded-lg border border-slate-700 object-contain"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2 border-t border-purple-900">
+                    <button
+                      onClick={() => handleVerifyPayment(pt.teamId)}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors"
+                    >
+                      ✓ Verify & Grant Access
+                    </button>
+                    <button
+                      onClick={() => handleRejectPayment(pt.teamId)}
+                      className="px-4 py-2.5 rounded-xl bg-red-950 text-red-300 hover:bg-red-900 border border-red-800"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: TIMER PRESETS */}
+      {activeTab === 'timer' && (
+        <div className="bg-[#151838] border-2 border-yellow-400 rounded-3xl p-6 sm:p-8 space-y-6 max-w-3xl font-mono text-xs">
+          <div>
+            <span className="text-xs font-arcade text-yellow-300 uppercase font-bold">
+              CHIEF ORGANIZER TIMER PRESETS
+            </span>
+            <h3 className="text-2xl font-display font-black text-white mt-1">
+              Select Tournament Countdown Preset
+            </h3>
+            <p className="text-xs text-purple-200 mt-1">
+              Configure the challenge time limit across Single, Duo, and Tribe categories.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {(Object.keys(TIMER_PRESETS) as TimerPresetKey[]).map(key => {
+              const preset = TIMER_PRESETS[key];
+              const isSelected = settings.selectedTimerPreset === key;
+
+              return (
+                <div
+                  key={key}
+                  onClick={() => handleSelectPreset(key)}
+                  className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-yellow-950/60 border-yellow-400 shadow-glow-yellow'
+                      : 'bg-[#090a16] border-slate-700 hover:border-purple-400'
+                  }`}
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-arcade px-2 py-0.5 rounded bg-purple-950 text-yellow-300 border border-purple-500">
+                      {preset.badge}
+                    </span>
+                    {isSelected && <span className="text-xs font-bold text-yellow-400">ACTIVE</span>}
+                  </div>
+
+                  <h4 className="font-display font-bold text-white text-base">{preset.name}</h4>
+                  <p className="text-[10px] text-slate-400 mt-1 mb-3">{preset.description}</p>
+
+                  <div className="space-y-1 text-slate-300 border-t border-purple-900 pt-2 text-[11px]">
+                    <div className="flex justify-between">
+                      <span>Single (10 Qs):</span>
+                      <strong className="text-yellow-300">{preset.durations.single} Mins</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Duo (20 Qs):</span>
+                      <strong className="text-pink-300">{preset.durations.duo} Mins</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tribe (30 Qs):</span>
+                      <strong className="text-purple-300">{preset.durations.tribe} Mins</strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-3.5 bg-[#090a16] rounded-xl border border-purple-900 text-slate-400 text-[11px]">
+            ⚠️ <strong>Rule:</strong> Modifying the timer preset applies strictly to new sessions created moving forward. Existing in-progress squad sessions retain their original scheduled deadline.
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: QUESTION BANK (70 QUESTIONS) */}
+      {activeTab === 'questions' && (
+        <div className="space-y-4 font-mono text-xs">
+          <div className="p-4 bg-[#090a16] rounded-2xl border-2 border-purple-500/80 flex flex-wrap justify-between items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white uppercase">FILTER:</span>
+              <select
+                value={questionCategoryFilter}
+                onChange={e => setQuestionCategoryFilter(e.target.value as any)}
+                className="bg-[#151838] border border-slate-700 rounded-lg px-2.5 py-1 text-white"
+              >
+                <option value="all">All Pools (70 Qs)</option>
+                <option value="single">Single Pool (20 Moderate)</option>
+                <option value="duo">Duo Pool (20 Little-Hard)</option>
+                <option value="tribe">Tribe Pool (30 Hard)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={questionSearch}
+                onChange={e => setQuestionSearch(e.target.value)}
+                placeholder="Search questions or answer..."
+                className="bg-[#151838] border border-slate-700 rounded-lg px-3 py-1 text-white placeholder-slate-500"
+              />
+              <button
+                onClick={() => setIsAddingQuestion(!isAddingQuestion)}
+                className="px-3.5 py-1.5 rounded-lg bg-yellow-400 text-slate-950 font-bold hover:bg-yellow-300 transition-colors"
+              >
+                + Add Question
+              </button>
+            </div>
+          </div>
+
+          {/* Add Question Modal / Form */}
+          {isAddingQuestion && (
+            <form onSubmit={handleCreateQuestion} className="p-6 rounded-2xl bg-[#151838] border-2 border-yellow-400 space-y-4">
+              <h4 className="font-display font-black text-white text-base">Add New Question to Pool</h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 mb-1">Target Category</label>
+                  <select
+                    value={newQCategory}
+                    onChange={e => setNewQCategory(e.target.value as any)}
+                    className="w-full bg-[#090a16] border border-slate-700 rounded-lg p-2 text-white"
+                  >
+                    <option value="single">Single (Moderate)</option>
+                    <option value="duo">Duo (Little-Hard)</option>
+                    <option value="tribe">Tribe (Hard)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Difficulty Label</label>
+                  <select
+                    value={newQDifficulty}
+                    onChange={e => setNewQDifficulty(e.target.value as any)}
+                    className="w-full bg-[#090a16] border border-slate-700 rounded-lg p-2 text-white"
+                  >
+                    <option value="moderate">Moderate</option>
+                    <option value="little-hard">Little-Hard</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Question / Riddle Text</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={newQText}
+                  onChange={e => setNewQText(e.target.value)}
+                  placeholder="Enter challenge description..."
+                  className="w-full bg-[#090a16] border border-slate-700 rounded-lg p-2.5 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Multiple Choice Options (One per line)</label>
+                <textarea
+                  rows={4}
+                  required
+                  value={newQOptions}
+                  onChange={e => setNewQOptions(e.target.value)}
+                  className="w-full bg-[#090a16] border border-slate-700 rounded-lg p-2.5 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 mb-1">Correct Answer (Secret Server Key)</label>
+                  <input
+                    type="text"
+                    required
+                    value={newQCorrectAnswer}
+                    onChange={e => setNewQCorrectAnswer(e.target.value)}
+                    placeholder="Exact correct answer string..."
+                    className="w-full bg-[#090a16] border border-yellow-500 rounded-lg p-2 text-yellow-300 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Solution Explanation</label>
+                  <input
+                    type="text"
+                    value={newQExplanation}
+                    onChange={e => setNewQExplanation(e.target.value)}
+                    placeholder="Explanation revealed after submission..."
+                    className="w-full bg-[#090a16] border border-slate-700 rounded-lg p-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingQuestion(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded-lg bg-yellow-400 text-slate-950 font-bold"
+                >
+                  Save Question to Database
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Question List */}
+          <div className="space-y-3">
+            {filteredQuestions.map((q, idx) => (
+              <div key={q.id} className="p-5 rounded-2xl bg-[#151838] border border-purple-900 space-y-2">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-arcade px-2 py-0.5 rounded bg-purple-950 text-yellow-300 border border-purple-500">
+                      {q.category.toUpperCase()}
+                    </span>
+                    <span className="text-slate-400 text-[10px]">ID: {q.id}</span>
+                    <span className="text-emerald-400 text-xs font-bold">+{q.points} PTS</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete question ${q.id}?`)) {
+                        storage.deleteQuestion(q.id);
+                        refreshAll();
+                      }
+                    }}
+                    className="text-red-400 hover:text-red-300 p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="text-white text-xs font-sans font-medium">{q.text}</p>
+
+                {q.options && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {q.options.map((opt, oIdx) => (
+                      <span key={oIdx} className="px-2 py-1 rounded bg-[#090a16] text-[11px] text-slate-300 border border-slate-800">
+                        {opt}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-purple-950 flex flex-wrap justify-between items-center text-[11px]">
+                  <div>
+                    <span className="text-slate-500 uppercase">SERVER ANSWER KEY: </span>
+                    <strong className="text-yellow-300">{q.correctAnswer}</strong>
+                  </div>
+                  <div className="text-slate-400 max-w-md truncate">
+                    <span>Clue: {q.explanation}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: BUDGET & EXPENSES */}
       {activeTab === 'finances' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Add Expense Form */}
-          <div className="lg:col-span-4 bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 font-mono text-xs">
+          <div className="lg:col-span-4 bg-[#151838] border-2 border-purple-500/80 rounded-3xl p-6 space-y-4">
             <h3 className="font-display font-bold text-white text-lg">
-              Record Operational Expense
+              Record Fest Expense
             </h3>
 
-            <form onSubmit={handleAddExpense} className="space-y-3 font-mono text-xs">
+            <form onSubmit={handleAddExpense} className="space-y-3">
               <div>
                 <label className="block text-slate-400 mb-1">Expense Description</label>
                 <input
@@ -645,8 +902,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
                   required
                   value={newExpTitle}
                   onChange={e => setNewExpTitle(e.target.value)}
-                  placeholder="e.g. Refreshments for volunteers"
-                  className="w-full bg-[#0b0e17] border border-slate-700 rounded-lg p-2.5 text-white"
+                  placeholder="e.g. Pixel Art Banners"
+                  className="w-full bg-[#090a16] border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>
 
@@ -655,11 +912,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
                 <select
                   value={newExpCategory}
                   onChange={e => setNewExpCategory(e.target.value as any)}
-                  className="w-full bg-[#0b0e17] border border-slate-700 rounded-lg p-2.5 text-white"
+                  className="w-full bg-[#090a16] border border-slate-700 rounded-xl p-2.5 text-white"
                 >
-                  <option value="Prizes">Prizes</option>
+                  <option value="Operations">Operations</option>
                   <option value="Print & Media">Print & Media</option>
-                  <option value="Internet & Ops">Internet & Ops</option>
+                  <option value="Internet & Infrastructure">Internet & Infrastructure</option>
                   <option value="Marketing">Marketing</option>
                   <option value="Contingency">Contingency</option>
                 </select>
@@ -672,41 +929,40 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
                   required
                   value={newExpAmount}
                   onChange={e => setNewExpAmount(e.target.value)}
-                  placeholder="e.g. 50"
-                  className="w-full bg-[#0b0e17] border border-slate-700 rounded-lg p-2.5 text-white"
+                  placeholder="e.g. 150"
+                  className="w-full bg-[#090a16] border border-slate-700 rounded-xl p-2.5 text-white"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold transition-colors"
+                className="w-full py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-bold transition-colors font-display"
               >
                 + Add Expense to Ledger
               </button>
             </form>
           </div>
 
-          {/* Expenses Table */}
-          <div className="lg:col-span-8 bg-[#111420] border border-slate-800 rounded-2xl overflow-hidden">
-            <div className="p-4 bg-[#0b0e17] border-b border-slate-800 flex justify-between items-center text-xs font-mono">
+          <div className="lg:col-span-8 bg-[#151838] border-2 border-[#2a2f5a] rounded-3xl overflow-hidden shadow-2xl">
+            <div className="p-4 bg-[#090a16] border-b border-purple-900 flex justify-between items-center">
               <span className="font-bold text-white uppercase">OFFICIAL EXPENDITURE LEDGER</span>
-              <span className="text-red-400 font-bold">TOTAL: ₹{totalExpenses}</span>
+              <span className="text-red-400 font-bold">TOTAL EXPENSES: ₹{totalExpenses}</span>
             </div>
 
             <table className="w-full text-left font-mono text-xs">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                <tr className="border-b border-purple-900 text-purple-300 uppercase text-[11px]">
                   <th className="py-3 px-4">ITEM / SERVICE</th>
                   <th className="py-3 px-4">CATEGORY</th>
                   <th className="py-3 px-4">DATE</th>
                   <th className="py-3 px-4 text-right">AMOUNT (₹)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-purple-950/60">
                 {expenses.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-900/40">
+                  <tr key={e.id} className="hover:bg-purple-950/30">
                     <td className="py-3 px-4 text-white font-semibold">{e.title}</td>
-                    <td className="py-3 px-4 text-slate-400">{e.category}</td>
+                    <td className="py-3 px-4 text-slate-300">{e.category}</td>
                     <td className="py-3 px-4 text-slate-500">{e.date}</td>
                     <td className="py-3 px-4 text-right font-bold text-red-400">₹{e.amount}</td>
                   </tr>
@@ -717,225 +973,55 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
         </div>
       )}
 
-      {/* TAB 4: EVENT MASTER CONTROLS */}
-      {activeTab === 'game_control' && (
-        <div className="bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-6 max-w-2xl font-mono text-xs">
-          <h3 className="font-display font-bold text-white text-lg">
-            Live Tournament Controls & Announcements
-          </h3>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-slate-400 mb-1 uppercase font-bold">
-                Emergency Broadcast Ticker Banner
-              </label>
-              <textarea
-                rows={3}
-                value={announcementText}
-                onChange={e => setAnnouncementText(e.target.value)}
-                placeholder="Broadcast real-time message to all active participants..."
-                className="w-full bg-[#0b0e17] border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-amber-400"
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800">
-              <div>
-                <span className="text-white font-bold block">Event Active Gate</span>
-                <span className="text-slate-400 text-[11px]">Toggle game access for all verified teams</span>
-              </div>
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  const updated = { ...settings, isEventActive: !settings.isEventActive };
-                  storage.saveAdminSettings(updated);
-                  setSettings(updated);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                  settings.isEventActive ? 'bg-emerald-500 text-slate-950' : 'bg-red-500 text-white'
-                }`}
-              >
-                {settings.isEventActive ? 'EVENT IS ACTIVE' : 'EVENT PAUSED'}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800">
-              <div>
-                <span className="text-white font-bold block">Team Registration Portal</span>
-                <span className="text-slate-400 text-[11px]">Accept new incoming squad registrations</span>
-              </div>
-              <button
-                onClick={() => {
-                  sound.playClick();
-                  const updated = { ...settings, isRegistrationOpen: !settings.isRegistrationOpen };
-                  storage.saveAdminSettings(updated);
-                  setSettings(updated);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                  settings.isRegistrationOpen ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-300'
-                }`}
-              >
-                {settings.isRegistrationOpen ? 'REGISTRATION OPEN' : 'REGISTRATION CLOSED'}
-              </button>
-            </div>
-
+      {/* TAB 7: CSV EXPORT REPORTS */}
+      {activeTab === 'reports' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 font-mono text-xs">
+          <div className="p-6 rounded-3xl bg-[#151838] border-2 border-purple-500 text-center space-y-4">
+            <FileText className="w-8 h-8 text-yellow-400 mx-auto" />
+            <h4 className="font-display font-bold text-white text-base">Squad Registry CSV</h4>
+            <p className="text-slate-400 text-xs">Download full roster of registered teams with leader contacts and statuses.</p>
             <button
-              onClick={handleSaveSettings}
-              className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold transition-colors text-sm shadow-glow-gold"
+              onClick={() => {
+                const headers = ['Team ID', 'Squad Name', 'Category', 'Leader Name', 'Leader Phone', 'Email', 'College', 'Members', 'Status', 'Total Fee'];
+                const rows = teams.map(t => [t.teamId, t.teamName, t.category, t.leaderName, t.leaderPhone, t.leaderEmail, t.college, t.members.join('; '), t.paymentStatus, t.totalAmount]);
+                exportCSV('chaos_squad_registry.csv', headers, rows);
+              }}
+              className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold"
             >
-              Broadcast Changes & Update Settings
+              <Download className="w-4 h-4 inline mr-1" /> Export Teams CSV
             </button>
           </div>
-        </div>
-      )}
 
-      {/* TAB 5: PUZZLE & MYSTERY CONFIGURATION */}
-      {activeTab === 'puzzles' && (
-        <div className="space-y-4">
-          <div className="p-4 bg-[#0b0e17] rounded-xl border border-slate-800 font-mono text-xs text-slate-400">
-            Case 001 — The Missing File has 5 pre-configured forensic stages. In future editions, you can deploy Case 002 directly from this management panel.
+          <div className="p-6 rounded-3xl bg-[#151838] border-2 border-pink-500 text-center space-y-4">
+            <DollarSign className="w-8 h-8 text-pink-400 mx-auto" />
+            <h4 className="font-display font-bold text-white text-base">Payment & UTR Audit</h4>
+            <p className="text-slate-400 text-xs">Download all 12-digit UPI UTR transaction records and approval timestamps.</p>
+            <button
+              onClick={() => {
+                const headers = ['Team ID', 'Squad Name', 'UPI UTR Reference', 'Amount (INR)', 'Payment Status', 'Verified At', 'Registered At'];
+                const rows = teams.map(t => [t.teamId, t.teamName, t.paymentRef, t.totalAmount, t.paymentStatus, t.verifiedAt || '', t.registeredAt]);
+                exportCSV('chaos_payments_audit.csv', headers, rows);
+              }}
+              className="w-full py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold"
+            >
+              <Download className="w-4 h-4 inline mr-1" /> Export Payments CSV
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 font-mono text-xs">
-            {PUZZLE_STAGES.map(s => (
-              <div key={s.id} className="p-5 rounded-xl bg-[#111420] border border-slate-800 space-y-2">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <span className="text-amber-400 font-bold uppercase">STAGE {s.stageNumber}: {s.title}</span>
-                  <span className="text-emerald-400 font-bold">POINTS: {s.points} PTS</span>
-                </div>
-                <p className="text-slate-300">{s.storyDescription}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
-                  <div>
-                    <span className="text-slate-500 uppercase block">CORRECT ANSWER KEY</span>
-                    <strong className="text-emerald-400 font-mono">{s.correctAnswer} {s.correctAnswer2 ? `& ${s.correctAnswer2}` : ''}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 uppercase block">HINT PENALTY</span>
-                    <span className="text-red-400">{s.hintPenaltyMinutes} Minutes</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* REQUIREMENT 8: RESET DEMO DATA MODAL */}
-      {isResetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0f131f] border border-red-500/40 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <div className="w-10 h-10 rounded-xl bg-red-950 border border-red-800/80 flex items-center justify-center text-red-400 shrink-0 shadow-glow-red">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
-                  Database & Demo Data Reset
-                </h3>
-                <span className="text-[11px] font-mono text-red-400">RESTRICTED CHIEF ORGANIZER PROCEDURE</span>
-              </div>
-            </div>
-
-            {/* Demo Records Breakdown */}
-            <div className="bg-[#141827] border border-slate-800 rounded-xl p-4 font-mono text-xs space-y-2">
-              <div className="text-slate-400 uppercase text-[10px] tracking-wider mb-2 font-bold">
-                Detected Records Audit
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Demo Teams Identified:</span>
-                <span className="text-amber-400 font-bold">{demoCounts.demoTeamsCount}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Demo Sessions Identified:</span>
-                <span className="text-amber-400 font-bold">{demoCounts.demoSessionsCount}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span>Demo Expenses Identified:</span>
-                <span className="text-amber-400 font-bold">{demoCounts.demoExpensesCount}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300 border-t border-slate-800/80 pt-2">
-                <span>Real Participant Squads:</span>
-                <span className="text-emerald-400 font-bold">{demoCounts.realTeamsCount} (Preserved in Selective Mode)</span>
-              </div>
-            </div>
-
-            {/* Mode Selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-mono text-slate-400 uppercase block">Reset Mode</label>
-              <div className="grid grid-cols-2 gap-2 font-mono text-xs">
-                <button
-                  type="button"
-                  onClick={() => setResetMode('clean_demo')}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    resetMode === 'clean_demo'
-                      ? 'bg-amber-950/40 border-amber-500 text-amber-200'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300'
-                  }`}
-                >
-                  <div className="font-bold">Selective Purge</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Delete demo records only; keep real registrations</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResetMode('full_reset')}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    resetMode === 'full_reset'
-                      ? 'bg-red-950/40 border-red-500 text-red-200'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300'
-                  }`}
-                >
-                  <div className="font-bold">Full Launch Reset</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Reset all to Day-1 clean 0-state</div>
-                </button>
-              </div>
-            </div>
-
-            {/* Feedback / Error notices */}
-            {resetError && (
-              <div className="p-3 rounded-lg bg-red-950/80 border border-red-800 text-red-300 text-xs font-mono">
-                {resetError}
-              </div>
-            )}
-            {resetFeedback && (
-              <div className="p-3 rounded-lg bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs font-mono">
-                {resetFeedback}
-              </div>
-            )}
-
-            {/* Security Confirmation Input */}
-            <div className="space-y-2 font-mono">
-              <label className="block text-xs text-slate-300">
-                To confirm, type <strong className="text-red-400 select-all">RESET DEMO DATA</strong> below:
-              </label>
-              <input
-                type="text"
-                value={resetConfirmInput}
-                onChange={e => setResetConfirmInput(e.target.value)}
-                placeholder="RESET DEMO DATA"
-                disabled={Boolean(resetFeedback)}
-                className="w-full bg-[#111420] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono tracking-wider focus:outline-none focus:border-red-400"
-              />
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2 font-mono text-xs">
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(false)}
-                disabled={Boolean(resetFeedback)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteReset}
-                disabled={resetConfirmInput.trim() !== 'RESET DEMO DATA' || Boolean(resetFeedback)}
-                className="px-5 py-2.5 rounded-xl font-bold bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all shadow-glow-red flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Confirm & Wipe Demo Data
-              </button>
-            </div>
+          <div className="p-6 rounded-3xl bg-[#151838] border-2 border-yellow-400 text-center space-y-4">
+            <HelpCircle className="w-8 h-8 text-yellow-400 mx-auto" />
+            <h4 className="font-display font-bold text-white text-base">70 Question Bank CSV</h4>
+            <p className="text-slate-400 text-xs">Download all 70 questions, options, difficulty ratings, and answer keys.</p>
+            <button
+              onClick={() => {
+                const headers = ['ID', 'Category', 'Difficulty', 'Question Text', 'Answer Key', 'Explanation', 'Points'];
+                const rows = questions.map(q => [q.id, q.category, q.difficulty, q.text, q.correctAnswer, q.explanation, q.points]);
+                exportCSV('chaos_70_questions_bank.csv', headers, rows);
+              }}
+              className="w-full py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-bold"
+            >
+              <Download className="w-4 h-4 inline mr-1" /> Export Questions CSV
+            </button>
           </div>
         </div>
       )}

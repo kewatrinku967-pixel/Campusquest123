@@ -9,15 +9,17 @@ import { RegisterModal } from './components/RegisterModal';
 import { LoginModal } from './components/LoginModal';
 import { storage } from './utils/storage';
 import { sound } from './utils/sound';
-import { Team, AdminSettings } from './types';
+import { Team, AdminSettings, ParticipationCategory } from './types';
 
 export function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'investigation' | 'leaderboard' | 'admin'>('landing');
   const [activeTeam, setActiveTeam] = useState<Team | null>(null);
   const [settings, setSettings] = useState<AdminSettings>(storage.getAdminSettings());
   
-  // Modals
+  // Modals & category selections
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [registerCategory, setRegisterCategory] = useState<ParticipationCategory>('duo');
+  const [registerPlayerCount, setRegisterPlayerCount] = useState<number>(2);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   
   // Sound Mute
@@ -54,15 +56,21 @@ export function App() {
     }
   };
 
+  const handleOpenRegisterWithCategory = (cat: ParticipationCategory, count: number) => {
+    setRegisterCategory(cat);
+    setRegisterPlayerCount(count);
+    setIsRegisterOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col justify-between selection:bg-amber-500/30 selection:text-amber-300">
+    <div className="min-h-screen bg-[#090a16] text-slate-100 flex flex-col justify-between selection:bg-purple-500/40 selection:text-pink-300">
       
       {/* Navigation */}
       <Navbar
         currentView={currentView}
         setCurrentView={setCurrentView}
         activeTeam={activeTeam}
-        onOpenRegister={() => setIsRegisterOpen(true)}
+        onOpenRegister={() => handleOpenRegisterWithCategory('duo', 2)}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
         isMuted={isMuted}
@@ -74,9 +82,9 @@ export function App() {
         {currentView === 'landing' && (
           <LandingView
             settings={settings}
-            onOpenRegister={() => setIsRegisterOpen(true)}
+            onOpenRegisterWithCategory={handleOpenRegisterWithCategory}
             onOpenLogin={() => setIsLoginOpen(true)}
-            onEnterInvestigation={() => {
+            onEnterGame={() => {
               if (activeTeam) {
                 setCurrentView('investigation');
               } else {
@@ -90,7 +98,7 @@ export function App() {
           <InvestigationRoomView
             team={activeTeam}
             onOpenLogin={() => setIsLoginOpen(true)}
-            onOpenRegister={() => setIsRegisterOpen(true)}
+            onOpenRegister={() => handleOpenRegisterWithCategory('duo', 2)}
             onGoToLeaderboard={() => setCurrentView('leaderboard')}
           />
         )}
@@ -118,7 +126,7 @@ export function App() {
       {/* Footer */}
       <Footer
         onOpenAdmin={() => setCurrentView('admin')}
-        onOpenRegister={() => setIsRegisterOpen(true)}
+        onOpenRegister={() => handleOpenRegisterWithCategory('duo', 2)}
       />
 
       {/* Modals */}
@@ -126,13 +134,15 @@ export function App() {
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}
         onSuccessLogin={handleLoginSuccess}
+        initialCategory={registerCategory}
+        initialPlayerCount={registerPlayerCount}
       />
 
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onSuccess={handleLoginSuccess}
-        onOpenRegister={() => setIsRegisterOpen(true)}
+        onOpenRegister={() => handleOpenRegisterWithCategory('duo', 2)}
       />
 
     </div>

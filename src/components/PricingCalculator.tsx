@@ -1,163 +1,224 @@
 import React, { useState } from 'react';
-import { Users, Calculator, Gift, Sparkles, Check, ArrowRight } from 'lucide-react';
+import { Users, Sparkles, Check, ArrowRight, Gift, Gamepad2, Brain, Flame } from 'lucide-react';
 import { sound } from '../utils/sound';
+import { ParticipationCategory } from '../types';
+import { CATEGORY_SPECS, calculateCategoryPrice, SURPRISE_PRIZE_MESSAGE } from '../utils/validators';
 
 interface PricingCalculatorProps {
-  onRegister: () => void;
+  onRegisterWithCategory: (category: ParticipationCategory, playerCount: number) => void;
 }
 
-export const PricingCalculator: React.FC<PricingCalculatorProps> = ({ onRegister }) => {
-  const [selectedPlayers, setSelectedPlayers] = useState<number>(3);
+export const PricingCalculator: React.FC<PricingCalculatorProps> = ({ onRegisterWithCategory }) => {
+  const [selectedCategory, setSelectedCategory] = useState<ParticipationCategory>('duo');
+  const [tribePlayerCount, setTribePlayerCount] = useState<number>(3);
 
-  const regularRate = 30;
-  const totalAmount = selectedPlayers * regularRate;
-  const earlyBirdTotal = selectedPlayers * 25;
+  const activeCount = selectedCategory === 'single' ? 1 : selectedCategory === 'duo' ? 2 : tribePlayerCount;
+  const pricing = calculateCategoryPrice(selectedCategory, activeCount);
+  const spec = CATEGORY_SPECS[selectedCategory];
 
   return (
-    <section id="pricing" className="py-16 border-t border-[#232b3d] relative">
+    <section id="pricing" className="py-16 border-t-2 border-[#2a2f5a] relative bg-[#090a16]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
+        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono font-medium mb-3">
-            <Calculator className="w-3.5 h-3.5" />
-            <span>TRANSPARENT ENTRY PRICING</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/80 border border-purple-500 text-yellow-300 text-xs font-arcade tracking-wider mb-3">
+            <Gamepad2 className="w-4 h-4 text-pink-400" />
+            <span>SELECT YOUR ARENA</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-display font-extrabold text-white">
-            Accessible Student Pricing & Rewards
+          <h2 className="text-3xl sm:text-5xl font-display font-black text-white">
+            Three Categories. One Champion Fest.
           </h2>
-          <p className="text-sm text-slate-400 mt-2">
-            Just ₹30 per player. Designed to be accessible for every college student while generating cash rewards.
+          <p className="text-sm text-slate-300 mt-2 font-mono">
+            Compete solo, team up with a partner, or mobilize a full tribe squad!
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        {/* Category Tabs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           
-          {/* Interactive Calculator Card */}
-          <div className="lg:col-span-7 bg-[#111420] border border-amber-500/30 rounded-2xl p-6 sm:p-8 shadow-glow-gold relative overflow-hidden">
-            <div className="absolute top-0 right-0 px-4 py-1.5 bg-gradient-to-l from-amber-500 to-amber-600 text-slate-950 font-bold text-xs uppercase font-mono tracking-wider rounded-bl-xl">
-              LIMITED EARLY BIRD: ₹25 / DETECTIVE
+          {/* Single Tab */}
+          <button
+            type="button"
+            onClick={() => { sound.playClick(); setSelectedCategory('single'); }}
+            className={`p-5 rounded-2xl border-2 text-left transition-all ${
+              selectedCategory === 'single'
+                ? 'bg-purple-900/40 border-purple-400 shadow-glow-purple scale-[1.02]'
+                : 'bg-[#151838] border-slate-800 hover:border-purple-500/50'
+            }`}
+          >
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-arcade px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-600 font-bold uppercase">
+                SINGLE
+              </span>
+              <span className="text-xl font-display font-black text-yellow-400">₹70</span>
+            </div>
+            <h4 className="text-lg font-display font-bold text-white">Solo Challenger</h4>
+            <p className="text-xs text-slate-400 font-mono mt-1">10 Questions // Moderate</p>
+          </button>
+
+          {/* Duo Tab */}
+          <button
+            type="button"
+            onClick={() => { sound.playClick(); setSelectedCategory('duo'); }}
+            className={`p-5 rounded-2xl border-2 text-left transition-all ${
+              selectedCategory === 'duo'
+                ? 'bg-pink-950/50 border-pink-500 shadow-glow-pink scale-[1.02]'
+                : 'bg-[#151838] border-slate-800 hover:border-pink-500/50'
+            }`}
+          >
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-arcade px-2 py-0.5 rounded bg-pink-950 text-pink-300 border border-pink-600 font-bold uppercase">
+                DUO (BEST VALUE)
+              </span>
+              <span className="text-xl font-display font-black text-pink-400">₹70 Total</span>
+            </div>
+            <h4 className="text-lg font-display font-bold text-white">Co-Op Partnership</h4>
+            <p className="text-xs text-slate-400 font-mono mt-1">20 Questions // Little-Hard</p>
+          </button>
+
+          {/* Tribe Tab */}
+          <button
+            type="button"
+            onClick={() => { sound.playClick(); setSelectedCategory('tribe'); }}
+            className={`p-5 rounded-2xl border-2 text-left transition-all ${
+              selectedCategory === 'tribe'
+                ? 'bg-yellow-950/40 border-yellow-400 shadow-glow-yellow scale-[1.02]'
+                : 'bg-[#151838] border-slate-800 hover:border-yellow-500/50'
+            }`}
+          >
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-arcade px-2 py-0.5 rounded bg-yellow-950 text-yellow-300 border border-yellow-600 font-bold uppercase">
+                TRIBE SQUAD
+              </span>
+              <span className="text-xl font-display font-black text-yellow-400">₹50 / Person</span>
+            </div>
+            <h4 className="text-lg font-display font-bold text-white">Full Squad Overdrive</h4>
+            <p className="text-xs text-slate-400 font-mono mt-1">30 Questions // Hard</p>
+          </button>
+
+        </div>
+
+        {/* Selected Category Detail Showcase */}
+        <div className="bg-[#151838] border-2 border-purple-500/70 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8">
+          
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            {/* Left Specs */}
+            <div className="lg:col-span-7 space-y-6">
+              <div>
+                <span className="text-xs font-arcade text-pink-400 uppercase tracking-widest">
+                  SELECTED PARTICIPATION SPEC
+                </span>
+                <h3 className="text-3xl sm:text-4xl font-display font-black text-white mt-1">
+                  {spec.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-purple-200/90 font-mono mt-1">
+                  {spec.difficultyLabel} — Designed to test reasoning, cipher skills, and observation.
+                </p>
+              </div>
+
+              {/* Tribe Size Selector */}
+              {selectedCategory === 'tribe' && (
+                <div className="p-4 rounded-xl bg-[#090a16] border border-yellow-500/40 space-y-2">
+                  <label className="text-xs font-arcade text-yellow-300 uppercase block">
+                    Choose Tribe Squad Size (3 to 5 Detectives)
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[3, 4, 5].map(cnt => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        onClick={() => { sound.playClick(); setTribePlayerCount(cnt); }}
+                        className={`py-3 rounded-lg border-2 font-display font-bold text-sm transition-all ${
+                          tribePlayerCount === cnt
+                            ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-glow-yellow'
+                            : 'bg-[#151838] text-slate-300 border-slate-700 hover:border-yellow-400'
+                        }`}
+                      >
+                        {cnt} Players (₹{cnt * 50})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Rules Checklist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                <div className="p-3 rounded-xl bg-[#090a16] border border-purple-900/60 flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span><strong>{spec.questionCount} Questions</strong> drawn randomly</span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#090a16] border border-purple-900/60 flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Max Score: <strong>{spec.maxScore} Points</strong></span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#090a16] border border-purple-900/60 flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Organizer-Controlled Timer</span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#090a16] border border-purple-900/60 flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Normalized Leaderboard %</span>
+                </div>
+              </div>
+
+              {/* Surprise Prize Banner */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950 via-[#23173d] to-pink-950 border-2 border-yellow-400/80 shadow-glow-yellow">
+                <div className="flex items-center gap-2 text-yellow-300 font-arcade text-xs mb-1">
+                  <Gift className="w-4 h-4 text-yellow-400" />
+                  <span>REWARDS & HONORS</span>
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-white">
+                  "{SURPRISE_PRIZE_MESSAGE}"
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-6">
-              <div>
-                <span className="text-xs font-mono text-slate-400 uppercase">Interactive Calculator</span>
-                <h3 className="text-2xl font-display font-bold text-white mt-1">
-                  Configure Your Squad Size
-                </h3>
+            {/* Right Price Card */}
+            <div className="lg:col-span-5 bg-[#090a16] border-2 border-yellow-400 rounded-2xl p-6 sm:p-8 text-center space-y-6 shadow-glow-yellow">
+              <span className="text-[10px] font-arcade px-3 py-1 rounded bg-yellow-950 text-yellow-300 border border-yellow-500 uppercase tracking-widest">
+                TOTAL PAYABLE AMOUNT
+              </span>
+
+              <div className="space-y-1">
+                <div className="text-5xl sm:text-6xl font-display font-black text-yellow-400">
+                  ₹{pricing.amountRupees}
+                </div>
+                <div className="text-xs font-mono text-purple-300">
+                  {spec.feeStructure}
+                </div>
               </div>
 
-              {/* Selector buttons */}
-              <div className="grid grid-cols-3 gap-3">
-                {[2, 3, 4].map((count) => (
-                  <button
-                    key={count}
-                    type="button"
-                    onClick={() => {
-                      sound.playClick();
-                      setSelectedPlayers(count);
-                    }}
-                    className={`py-4 px-4 rounded-xl border transition-all text-center flex flex-col items-center gap-1 ${
-                      selectedPlayers === count
-                        ? 'border-amber-400 bg-amber-500/20 text-amber-300 ring-2 ring-amber-400/40 shadow-glow-gold'
-                        : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-white'
-                    }`}
-                  >
-                    <Users className="w-5 h-5 mb-1 text-amber-400" />
-                    <span className="font-bold text-sm text-white">{count} Players</span>
-                    <span className="text-xs font-mono text-slate-400">₹{count * regularRate} Standard</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Cost Breakdown Display */}
-              <div className="bg-[#0b0e17] border border-slate-800 rounded-xl p-5 font-mono space-y-3">
-                <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span>Selected Squad Composition:</span>
-                  <strong className="text-white">{selectedPlayers} Collegiate Detectives</strong>
+              <div className="p-3 bg-[#151838] rounded-xl border border-slate-800 text-xs font-mono text-slate-300 text-left space-y-1">
+                <div className="flex justify-between">
+                  <span>Category:</span>
+                  <strong className="text-white uppercase">{selectedCategory}</strong>
                 </div>
-
-                <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span>Standard Entry Rate (₹30/person):</span>
-                  <span className="text-slate-300">₹{regularRate} × {selectedPlayers} = ₹{totalAmount}</span>
+                <div className="flex justify-between">
+                  <span>Participants:</span>
+                  <strong className="text-white">{activeCount} Detective(s)</strong>
                 </div>
-
-                <div className="flex justify-between items-center text-xs text-amber-400 font-semibold border-b border-slate-800 pb-2">
-                  <span>Early Bird Discount (First 5 Teams):</span>
-                  <span>₹25 × {selectedPlayers} = ₹{earlyBirdTotal}</span>
-                </div>
-
-                <div className="flex justify-between items-center pt-1">
-                  <div>
-                    <span className="text-xs uppercase text-slate-400 block">Total Team Fee</span>
-                    <span className="text-xs text-emerald-400 font-sans">100% Secure UPI Instant Verification</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-3xl font-bold text-amber-400">₹{totalAmount}</span>
-                  </div>
+                <div className="flex justify-between">
+                  <span>Challenge Pool:</span>
+                  <strong className="text-yellow-300">{spec.questionCount} Questions</strong>
                 </div>
               </div>
 
               <button
+                type="button"
                 onClick={() => {
                   sound.playClick();
-                  onRegister();
+                  onRegisterWithCategory(selectedCategory, activeCount);
                 }}
-                className="w-full py-4 rounded-xl font-display font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-glow-gold transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl font-display font-black text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 shadow-glow-yellow transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 text-base"
               >
-                <Sparkles className="w-4 h-4" />
-                Register Team For ₹{totalAmount}
-                <ArrowRight className="w-4 h-4" />
+                <Sparkles className="w-5 h-5 text-slate-950" />
+                ENTER {spec.title} (₹{pricing.amountRupees})
+                <ArrowRight className="w-5 h-5 text-slate-950" />
               </button>
             </div>
-          </div>
 
-          {/* Business & Prize Model Card (Judges showcase) */}
-          <div className="lg:col-span-5 space-y-5">
-            <div className="bg-[#111420] border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center gap-2 text-amber-400 font-mono text-xs font-semibold uppercase">
-                <Gift className="w-4 h-4" />
-                <span>Prize & Recognition Structure</span>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">🥇</span>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">1st Place Detective Champions</h4>
-                      <p className="text-[11px] text-slate-400">Cash Award + Official Certificate</p>
-                    </div>
-                  </div>
-                  <span className="text-base font-mono font-bold text-amber-400">₹150 CASH</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">🥈</span>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">Runner-Up Squad</h4>
-                      <p className="text-[11px] text-slate-400">Cash Award + Official Certificate</p>
-                    </div>
-                  </div>
-                  <span className="text-base font-mono font-bold text-slate-300">₹100 CASH</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">📜</span>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">All Completed Teams</h4>
-                      <p className="text-[11px] text-slate-400">Downloadable Forensic Detective Certificate</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-mono font-bold text-emerald-400">DIGITAL BADGE</span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-800 text-[11px] font-mono text-slate-400 leading-relaxed">
-                💡 <strong>Sustainable Business Model:</strong> Low variable cost structure, 15-team break-even point yielding +₹750 net profit on ₹600 budgeted expenses.
-              </div>
-            </div>
           </div>
 
         </div>

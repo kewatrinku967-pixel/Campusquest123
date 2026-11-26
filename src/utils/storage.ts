@@ -1,93 +1,93 @@
-import { Team, GameSession, Expense, AdminSettings, LeaderboardEntry } from '../types';
-import { PUZZLE_STAGES } from '../data/puzzles';
+import { 
+  Team, GameSession, Expense, AdminSettings, LeaderboardEntry, 
+  Question, PublicQuestion, ParticipationCategory, TimerPresetKey 
+} from '../types';
+import { QUESTION_BANK } from '../data/questions';
+import { TIMER_PRESETS, CATEGORY_SPECS, calculateCategoryPrice } from './validators';
 
 const STORAGE_KEYS = {
-  TEAMS: 'campus_quest_teams_v1',
-  GAME_SESSIONS: 'campus_quest_sessions_v1',
-  EXPENSES: 'campus_quest_expenses_v1',
-  ADMIN_SETTINGS: 'campus_quest_admin_settings_v1',
-  CURRENT_TEAM_ID: 'campus_quest_active_team_id_v1',
+  TEAMS: 'chaos_teams_v3',
+  GAME_SESSIONS: 'chaos_sessions_v3',
+  EXPENSES: 'chaos_expenses_v3',
+  ADMIN_SETTINGS: 'chaos_admin_settings_v3',
+  CURRENT_TEAM_ID: 'chaos_active_team_id_v3',
+  QUESTIONS: 'chaos_questions_v3'
 };
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   isEventActive: true,
   isRegistrationOpen: true,
-  emergencyNotice: 'Case 001 is officially live! Waiting for Admin verification and game clearance.',
-  timerMinutes: 30,
-  feePerPlayer: 30,
-  earlyBirdFee: 25,
-  upiId: 'campusquest@okhdfcbank',
-  upiName: 'Campus Quest Event Organizing Committee'
+  emergencyNotice: 'CHAOS: PLOT TWIST is officially live! Enter your squad access code to start the challenge.',
+  selectedTimerPreset: 'option_b', // Option B: Single 20m, Duo 30m, Tribe 45m
+  upiId: '7247066469@ptyes',
+  upiName: 'NARSINGH KUMAR KEWAT',
+  initialCapital: 1000,
+  showSurpriseMessage: true
 };
 
-// Private server answer keys (mirroring public.puzzle_answers in Supabase)
-const SERVER_ANSWER_KEYS: Record<number, string[]> = {
-  1: ['TIMESTAMP', 'CHECK THE TIMESTAMP'],
-  2: ['1415'],
-  3: ['KABIR', 'KABIR PATEL'],
-  4: ['MISSING'],
-  5: ['MIRA|ARCHIVE_DRAFTS', 'MIRA SHARMA|ARCHIVE_DRAFTS']
-};
-
-// Optional sample catalog retained strictly for development reference or test fixtures
-export const DEMO_SAMPLE_TEAMS: Team[] = [
-  {
-    id: 'team-demo-01',
-    teamId: 'CQ-7777',
-    accessCode: 'DETECTIVE77',
-    teamName: 'Apex Sleuths (Demo)',
-    leaderName: 'Aarav Gupta',
-    leaderEmail: 'aarav.sleuths@campus.edu',
-    leaderPhone: '+91 98765 43210',
-    college: 'Engineering Campus Institute',
-    department: 'Computer Science',
-    members: ['Aarav Gupta', 'Rohan Verma', 'Ananya Iyer'],
-    playerCount: 3,
-    totalAmount: 90,
-    paymentRef: 'UPI-REF-992817263541',
-    paymentStatus: 'VERIFIED',
-    registeredAt: '2026-11-24T09:30:00.000Z',
-    verifiedAt: '2026-11-24T09:35:00.000Z'
-  },
-  {
-    id: 'team-demo-02',
-    teamId: 'CQ-8812',
-    accessCode: 'CIPHER88',
-    teamName: 'Cipher Detectives (Demo)',
-    leaderName: 'Priya Nambiar',
-    leaderEmail: 'priya.n@campus.edu',
-    leaderPhone: '+91 98111 22233',
-    college: 'Tech University',
-    department: 'Information Science',
-    members: ['Priya Nambiar', 'Vikram Rao'],
-    playerCount: 2,
-    totalAmount: 60,
-    paymentRef: 'UPI-REF-771829103948',
-    paymentStatus: 'VERIFIED',
-    registeredAt: '2026-11-24T09:40:00.000Z',
-    verifiedAt: '2026-11-24T09:42:00.000Z'
-  },
-  {
-    id: 'team-demo-03',
-    teamId: 'CQ-1234',
-    accessCode: 'PENDING12',
-    teamName: 'The Enigma Cadets (Demo)',
-    leaderName: 'Karan Mehra',
-    leaderEmail: 'karan@campus.edu',
-    leaderPhone: '+91 98444 55566',
-    college: 'Arts & Commerce College',
-    department: 'Media Studies',
-    members: ['Karan Mehra', 'Tanya Roy', 'Sahil Khan', 'Simran Kaur'],
-    playerCount: 4,
-    totalAmount: 120,
-    paymentRef: 'UPI-REF-445566778899',
-    paymentStatus: 'PENDING',
-    registeredAt: '2026-11-24T10:10:00.000Z'
-  }
+export const INITIAL_EXPENSES: Expense[] = [
+  { id: 'exp-1', title: 'Campus Fest Banners & Posters', category: 'Print & Media', amount: 200, date: '2026-11-20' },
+  { id: 'exp-2', title: 'High-Speed Wi-Fi & Hotspot Infrastructure', category: 'Internet & Infrastructure', amount: 250, date: '2026-11-21' },
+  { id: 'exp-3', title: 'Volunteer Operations & Badges', category: 'Operations', amount: 150, date: '2026-11-22' },
+  { id: 'exp-4', title: 'Social Media & Campus Fest Promo', category: 'Marketing', amount: 100, date: '2026-11-23' }
 ];
 
 class StorageManager {
-  // TEAMS (Clean production: defaults to empty array)
+  // QUESTIONS (70 questions bank)
+  public getQuestions(): Question[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.QUESTIONS);
+      if (!data) {
+        localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(QUESTION_BANK));
+        return QUESTION_BANK;
+      }
+      return JSON.parse(data);
+    } catch {
+      return QUESTION_BANK;
+    }
+  }
+
+  public saveQuestion(question: Question) {
+    const list = this.getQuestions();
+    const idx = list.findIndex(q => q.id === question.id);
+    if (idx >= 0) {
+      list[idx] = question;
+    } else {
+      list.unshift(question);
+    }
+    localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(list));
+  }
+
+  public deleteQuestion(id: string) {
+    const list = this.getQuestions().filter(q => q.id !== id);
+    localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(list));
+  }
+
+  public toggleQuestionActive(id: string) {
+    const list = this.getQuestions();
+    const q = list.find(item => item.id === id);
+    if (q) {
+      q.isActive = !q.isActive;
+      localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(list));
+    }
+  }
+
+  // Get sanitized question without private correct_answer & explanation
+  public getPublicQuestion(id: string): PublicQuestion | undefined {
+    const q = this.getQuestions().find(item => item.id === id && item.isActive);
+    if (!q) return undefined;
+    return {
+      id: q.id,
+      text: q.text,
+      difficulty: q.difficulty,
+      category: q.category,
+      answerType: q.answerType,
+      options: q.options,
+      points: q.points
+    };
+  }
+
+  // TEAMS & REGISTRATION
   public getTeams(): Team[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.TEAMS);
@@ -101,32 +101,58 @@ class StorageManager {
     }
   }
 
-  public saveTeam(team: Team) {
+  public saveTeam(team: Team): { success: boolean; error?: string } {
     const teams = this.getTeams();
-    const existingIndex = teams.findIndex(t => t.teamId === team.teamId);
-    if (existingIndex >= 0) {
-      teams[existingIndex] = team;
+
+    // Check duplicate verified UPI reference
+    if (team.paymentRef) {
+      const duplicateVerified = teams.find(
+        t => t.id !== team.id && 
+             t.paymentStatus === 'VERIFIED' && 
+             t.paymentRef.trim().toUpperCase() === team.paymentRef.trim().toUpperCase()
+      );
+      if (duplicateVerified) {
+        return { 
+          success: false, 
+          error: `UPI Reference ${team.paymentRef} has already been verified for team "${duplicateVerified.teamName}". Duplicate payments are not allowed.` 
+        };
+      }
+    }
+
+    const idx = teams.findIndex(t => t.teamId === team.teamId || t.id === team.id);
+    if (idx >= 0) {
+      teams[idx] = team;
     } else {
       teams.unshift(team);
     }
     localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+    return { success: true };
   }
 
-  public updateTeamStatus(teamId: string, status: 'VERIFIED' | 'REJECTED' | 'PENDING', rejectionReason?: string) {
+  public updateTeamStatus(teamId: string, status: 'VERIFIED' | 'REJECTED' | 'PENDING', rejectionReason?: string): { success: boolean; error?: string } {
     const teams = this.getTeams();
     const team = teams.find(t => t.teamId === teamId);
-    if (team) {
-      team.paymentStatus = status;
-      if (status === 'VERIFIED') {
-        team.verifiedAt = new Date().toISOString();
-        team.rejectionReason = undefined;
-        // Auto-initialize session in NOT_STARTED state
-        this.getGameSession(teamId);
-      } else if (status === 'REJECTED') {
-        team.rejectionReason = rejectionReason || 'Payment reference could not be verified on UPI bank statement.';
+    if (!team) return { success: false, error: 'Team not found' };
+
+    if (status === 'VERIFIED') {
+      // Check if UPI ref is already verified by another team
+      const duplicate = teams.find(t => t.teamId !== teamId && t.paymentStatus === 'VERIFIED' && t.paymentRef.trim().toUpperCase() === team.paymentRef.trim().toUpperCase());
+      if (duplicate) {
+        return { success: false, error: `Cannot verify: UPI reference ${team.paymentRef} is already verified for team "${duplicate.teamName}".` };
       }
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      team.paymentStatus = 'VERIFIED';
+      team.verifiedAt = new Date().toISOString();
+      team.rejectionReason = undefined;
+    } else if (status === 'REJECTED') {
+      team.paymentStatus = 'REJECTED';
+      team.rejectionReason = rejectionReason || 'Payment reference does not match banking statement.';
+    } else {
+      team.paymentStatus = 'PENDING';
+      team.rejectionReason = undefined;
     }
+
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+    return { success: true };
   }
 
   public getTeamByCredentials(teamId: string, accessCode: string): Team | undefined {
@@ -139,10 +165,10 @@ class StorageManager {
 
   public getTeamById(teamId: string): Team | undefined {
     const teams = this.getTeams();
-    return teams.find(t => t.teamId.trim().toUpperCase() === teamId.trim().toUpperCase());
+    return teams.find(t => t.teamId.trim().toUpperCase() === teamId.trim().toUpperCase() || t.id === teamId);
   }
 
-  // ACTIVE TEAM SESSION
+  // ACTIVE TEAM CONTEXT
   public getActiveTeamId(): string | null {
     return localStorage.getItem(STORAGE_KEYS.CURRENT_TEAM_ID);
   }
@@ -157,235 +183,143 @@ class StorageManager {
 
   // GAME SESSIONS
   public getGameSession(teamId: string): GameSession {
-    let allSessions: Record<string, GameSession> = {};
+    const team = this.getTeamById(teamId);
+    const category: ParticipationCategory = team?.category || 'single';
+    const spec = CATEGORY_SPECS[category];
+
     try {
-      allSessions = JSON.parse(
+      const all: Record<string, GameSession> = JSON.parse(
         localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}'
       );
-      if (allSessions[teamId]) {
-        const sess = allSessions[teamId];
-        // Enforce server countdown expiry check
-        if (sess.status === 'IN_PROGRESS' && sess.startTime) {
-          const elapsed = Math.floor((Date.now() - sess.startTime) / 1000);
-          const remaining = sess.totalDurationSeconds - elapsed - sess.penaltySeconds;
-          if (remaining <= 0) {
-            sess.status = 'EXPIRED';
-            sess.endTime = sess.startTime + (sess.totalDurationSeconds * 1000);
-            allSessions[teamId] = sess;
-            localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify(allSessions));
-          }
-        }
-        return sess;
+      if (all[teamId]) {
+        return all[teamId];
       }
     } catch {}
 
+    const settings = this.getAdminSettings();
+    const preset = TIMER_PRESETS[settings.selectedTimerPreset] || TIMER_PRESETS.option_b;
+    const durationMinutes = preset.durations[category];
+
+    // Select questions randomly once per session and save them permanently!
+    const allQuestions = this.getQuestions().filter(q => q.category === category && q.isActive);
+    let assignedIds: string[] = [];
+
+    if (category === 'single') {
+      // Pick 10 random questions out of 20
+      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+      assignedIds = shuffled.slice(0, 10).map(q => q.id);
+    } else if (category === 'duo') {
+      // Pick 20 questions in random order
+      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+      assignedIds = shuffled.slice(0, 20).map(q => q.id);
+    } else {
+      // Tribe: pick 30 questions in random order
+      const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+      assignedIds = shuffled.slice(0, 30).map(q => q.id);
+    }
+
     const newSession: GameSession = {
       teamId,
+      category,
       status: 'NOT_STARTED',
+      presetUsed: settings.selectedTimerPreset,
       startTime: null,
+      deadlineTime: null,
       endTime: null,
-      totalDurationSeconds: 1800, // 30 minutes
+      totalDurationSeconds: durationMinutes * 60,
       penaltySeconds: 0,
-      currentStage: 1,
-      completedStages: [],
-      stageTimes: {},
+      currentQuestionIndex: 0,
+      assignedQuestionIds: assignedIds,
+      answers: {},
       score: 0,
-      hintsUsed: [],
-      answersGiven: {}
+      maxScore: spec.maxScore,
+      percentageScore: 0,
+      completedQuestions: []
     };
-    allSessions[teamId] = newSession;
-    localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify(allSessions));
+
+    this.saveGameSession(newSession);
     return newSession;
   }
 
   public saveGameSession(session: GameSession) {
     try {
-      const allSessions: Record<string, GameSession> = JSON.parse(
+      const all: Record<string, GameSession> = JSON.parse(
         localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}'
       );
-      allSessions[session.teamId] = session;
-      localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify(allSessions));
+      all[session.teamId] = session;
+      localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify(all));
     } catch {}
   }
 
-  // ADMIN-ONLY GAME START & EXPIRE
-  public adminStartGame(teamId: string): { success: boolean; error?: string; session?: GameSession } {
-    const team = this.getTeamById(teamId);
-    if (!team) return { success: false, error: 'Team not found.' };
-    if (team.paymentStatus !== 'VERIFIED') return { success: false, error: 'Cannot start unverified team.' };
-
-    const session = this.getGameSession(teamId);
-    if (session.status === 'IN_PROGRESS') return { success: false, error: 'Game is already in progress.' };
-    if (session.status === 'COMPLETED') return { success: false, error: 'Game is already completed.' };
-
-    session.status = 'IN_PROGRESS';
-    session.startTime = Date.now();
-    session.endTime = null;
-    this.saveGameSession(session);
-    return { success: true, session };
-  }
-
-  public adminExpireGame(teamId: string): { success: boolean } {
-    const session = this.getGameSession(teamId);
-    session.status = 'EXPIRED';
-    session.endTime = Date.now();
-    this.saveGameSession(session);
-    return { success: true };
-  }
-
-  // SERVER-SIDE ANSWER EVALUATION
-  public verifyAnswer(teamId: string, stageId: number, submittedAnswer: string): {
+  // Answer validation: Server-side check against Question Bank
+  public submitAnswer(teamId: string, questionId: string, answer: string): {
+    success: boolean;
     isCorrect: boolean;
+    explanation: string;
     pointsAwarded: number;
-    remainingSeconds: number;
-    score: number;
-    nextStage: number;
-    isCompleted: boolean;
-    message: string;
+    newScore: number;
+    newPercentage: number;
   } {
     const session = this.getGameSession(teamId);
-    if (session.status !== 'IN_PROGRESS' || !session.startTime) {
-      return {
-        isCorrect: false,
-        pointsAwarded: 0,
-        remainingSeconds: 0,
-        score: session.score,
-        nextStage: session.currentStage,
-        isCompleted: false,
-        message: 'Game session is not active.'
-      };
+    const questions = this.getQuestions();
+    const question = questions.find(q => q.id === questionId);
+
+    if (!question) {
+      return { success: false, isCorrect: false, explanation: 'Question not found', pointsAwarded: 0, newScore: session.score, newPercentage: session.percentageScore };
     }
 
-    const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
-    const remainingSeconds = Math.max(0, session.totalDurationSeconds - elapsed - session.penaltySeconds);
+    // Server-side check
+    const normalizedUser = answer.trim().toUpperCase();
+    const normalizedCorrect = question.correctAnswer.trim().toUpperCase();
+    const isCorrect = normalizedUser === normalizedCorrect;
 
-    const acceptedList = SERVER_ANSWER_KEYS[stageId] || [];
-    const normalizedInput = submittedAnswer.trim().toUpperCase().replace(/\s+/g, ' ');
-    const isCorrect = acceptedList.some(k => normalizedInput === k.toUpperCase() || normalizedInput.includes(k.toUpperCase()));
+    const points = isCorrect ? question.points : 0;
 
-    if (isCorrect) {
-      const stageConfig = PUZZLE_STAGES.find(s => s.id === stageId);
-      const points = stageConfig ? stageConfig.points : 10;
-
-      if (!session.completedStages.includes(stageId)) {
-        session.completedStages.push(stageId);
+    // Record answer
+    session.answers[questionId] = answer.trim();
+    if (!session.completedQuestions.includes(questionId)) {
+      session.completedQuestions.push(questionId);
+      if (isCorrect) {
         session.score += points;
       }
-
-      const isCompleted = session.completedStages.length === 5;
-      session.currentStage = isCompleted ? 5 : Math.min(5, session.completedStages.length + 1);
-
-      if (isCompleted) {
-        session.status = 'COMPLETED';
-        session.endTime = Date.now();
-      }
-
-      this.saveGameSession(session);
-
-      return {
-        isCorrect: true,
-        pointsAwarded: points,
-        remainingSeconds,
-        score: session.score,
-        nextStage: session.currentStage,
-        isCompleted,
-        message: `Stage ${stageId} verified! +${points} Points Awarded.`
-      };
-    } else {
-      return {
-        isCorrect: false,
-        pointsAwarded: 0,
-        remainingSeconds,
-        score: session.score,
-        nextStage: session.currentStage,
-        isCompleted: false,
-        message: 'Incorrect deduction. Re-examine the evidence log and try again.'
-      };
-    }
-  }
-
-  // SERVER-SIDE HINT USAGE
-  public useHint(teamId: string, stageId: number): { success: boolean; hint: string; penaltySeconds: number; remainingSeconds: number } | { success: false; error: string } {
-    const session = this.getGameSession(teamId);
-    if (session.status !== 'IN_PROGRESS' || !session.startTime) {
-      return { success: false, error: 'Session is not active.' };
     }
 
-    if (session.hintsUsed.includes(stageId)) {
-      return { success: false, error: 'Hint already used for this stage.' };
-    }
-
-    const stageConfig = PUZZLE_STAGES.find(s => s.id === stageId);
-    if (!stageConfig) return { success: false, error: 'Stage not found.' };
-
-    const penaltySec = (stageConfig.hintPenaltyMinutes || 2) * 60;
-    session.hintsUsed.push(stageId);
-    session.penaltySeconds += penaltySec;
+    session.percentageScore = Math.round((session.score / session.maxScore) * 100);
     this.saveGameSession(session);
-
-    const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
-    const remainingSeconds = Math.max(0, session.totalDurationSeconds - elapsed - session.penaltySeconds);
 
     return {
       success: true,
-      hint: stageConfig.hint,
-      penaltySeconds: penaltySec,
-      remainingSeconds
+      isCorrect,
+      explanation: question.explanation,
+      pointsAwarded: points,
+      newScore: session.score,
+      newPercentage: session.percentageScore
     };
   }
 
-  // EXPENSES (Clean production: defaults to empty array)
+  // EXPENSES
   public getExpenses(): Expense[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.EXPENSES);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
-        return [];
+        localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(INITIAL_EXPENSES));
+        return INITIAL_EXPENSES;
       }
       return JSON.parse(data);
     } catch {
-      return [];
+      return INITIAL_EXPENSES;
     }
   }
 
   public addExpense(expense: Expense) {
-    const expenses = this.getExpenses();
-    expenses.push(expense);
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
+    const list = this.getExpenses();
+    list.unshift(expense);
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(list));
   }
 
-  public deleteExpense(id: string): boolean {
-    const expenses = this.getExpenses();
-    const updated = expenses.filter(e => e.id !== id);
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(updated));
-    return true;
-  }
-
-  // FINANCIAL LEDGER SUMMARY (Exact collegiate formula)
-  public getFinanceSummary() {
-    const teams = this.getTeams();
-    const expenses = this.getExpenses();
-
-    const initialCapital = 1000;
-    const verifiedTeams = teams.filter(t => t.paymentStatus === 'VERIFIED');
-    const realRevenue = verifiedTeams.reduce((acc, t) => acc + (t.totalAmount || 0), 0);
-    const totalExpenses = expenses.reduce((acc, e) => acc + (e.amount || 0), 0);
-    const netProfit = realRevenue - totalExpenses;
-    const closingCash = initialCapital + realRevenue - totalExpenses;
-    const capitalToReturn = initialCapital;
-    const retainedProfit = closingCash - capitalToReturn;
-
-    return {
-      initialCapital,
-      realRevenue,
-      totalExpenses,
-      netProfit,
-      closingCash,
-      capitalToReturn,
-      retainedProfit,
-      verifiedCount: verifiedTeams.length,
-      totalParticipants: verifiedTeams.reduce((acc, t) => acc + t.playerCount, 0)
-    };
+  public deleteExpense(id: string) {
+    const list = this.getExpenses().filter(e => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(list));
   }
 
   // ADMIN SETTINGS
@@ -403,200 +337,71 @@ class StorageManager {
     localStorage.setItem(STORAGE_KEYS.ADMIN_SETTINGS, JSON.stringify(settings));
   }
 
-  // LEADERBOARD COMPUTATION (Strictly derived from real sessions, no seed duplicates)
-  public getLeaderboard(currentTeamId?: string): LeaderboardEntry[] {
+  // LEADERBOARD COMPUTATION
+  // Tie-breakers: 1. Highest percentageScore DESC, 2. Lowest durationSeconds ASC, 3. Earliest finishedAtTimestamp ASC
+  public getLeaderboard(categoryFilter?: ParticipationCategory | 'all', currentTeamId?: string): LeaderboardEntry[] {
     const teams = this.getTeams();
-    let sessionsData: Record<string, GameSession> = {};
-    try {
-      sessionsData = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
-    } catch {}
+    const sessions: Record<string, GameSession> = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}'
+    );
 
     const entries: LeaderboardEntry[] = [];
 
-    // Real teams with valid game sessions
     for (const team of teams) {
-      const session = sessionsData[team.teamId];
-      if (session && session.startTime) {
-        const rawDurationSec = Math.floor(((session.endTime || Date.now()) - session.startTime) / 1000) + session.penaltySeconds;
-        const mins = Math.floor(rawDurationSec / 60);
-        const secs = rawDurationSec % 60;
+      if (team.paymentStatus !== 'VERIFIED') continue;
+      if (categoryFilter && categoryFilter !== 'all' && team.category !== categoryFilter) continue;
+
+      const session = sessions[team.teamId];
+      if (session && session.status === 'COMPLETED' && session.startTime && session.endTime) {
+        const rawSec = Math.floor((session.endTime - session.startTime) / 1000) + session.penaltySeconds;
+        const mins = Math.floor(rawSec / 60);
+        const secs = rawSec % 60;
         const durationFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 
         entries.push({
           rank: 0,
           teamId: team.teamId,
           teamName: team.teamName,
+          category: team.category,
           score: session.score,
-          durationSeconds: rawDurationSec,
+          maxScore: session.maxScore,
+          percentageScore: session.percentageScore,
+          durationSeconds: rawSec,
           durationFormatted,
-          stagesCompleted: session.completedStages.length,
-          finishedAt: session.endTime ? new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In Progress',
+          questionsCompleted: session.completedQuestions.length,
+          totalQuestions: session.assignedQuestionIds.length,
+          finishedAt: new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          finishedAtTimestamp: session.endTime,
           isCurrentUser: currentTeamId === team.teamId
         });
       }
     }
 
-    // Sort: Score DESC, then durationSeconds ASC
+    // Sort: 1. Percentage Score DESC, 2. Duration ASC, 3. Finished Timestamp ASC
     entries.sort((a, b) => {
-      if (b.score !== a.score) {
-        return b.score - a.score;
+      if (b.percentageScore !== a.percentageScore) {
+        return b.percentageScore - a.percentageScore;
       }
-      return a.durationSeconds - b.durationSeconds;
+      if (a.durationSeconds !== b.durationSeconds) {
+        return a.durationSeconds - b.durationSeconds;
+      }
+      return a.finishedAtTimestamp - b.finishedAtTimestamp;
     });
 
-    // Re-assign ranks
     return entries.map((entry, index) => ({
       ...entry,
       rank: index + 1
     }));
   }
 
-  // DEMO DATA DETECTION & SELECTIVE CLEANUP
-  public isDemoTeam(team: Team): boolean {
-    const demoCodes = ['CQ-7777', 'CQ-8812', 'CQ-1234'];
-    return (
-      demoCodes.includes(team.teamId.toUpperCase()) ||
-      team.id.startsWith('team-demo') ||
-      team.paymentRef.startsWith('UPI-REF-') ||
-      team.teamName.includes('(Demo)')
-    );
-  }
-
-  public getDemoRecordCounts() {
-    const teams = this.getTeams();
-    let sessions: Record<string, GameSession> = {};
-    try {
-      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
-    } catch {}
-    const expenses = this.getExpenses();
-
-    const demoTeams = teams.filter(t => this.isDemoTeam(t));
-    const demoTeamIds = new Set(demoTeams.map(t => t.teamId));
-    const demoSessions = Object.keys(sessions).filter(id => demoTeamIds.has(id));
-    const demoExpenses = expenses.filter(e => e.id.startsWith('exp-demo-') || e.id.startsWith('exp-'));
-
-    return {
-      demoTeamsCount: demoTeams.length,
-      demoSessionsCount: demoSessions.length,
-      demoExpensesCount: demoExpenses.length,
-      realTeamsCount: teams.length - demoTeams.length,
-      totalTeams: teams.length,
-      totalExpenses: expenses.length
-    };
-  }
-
-  // Remove strictly demo records, preserving any genuine registered teams
-  public cleanDemoData(): { deletedTeams: number; deletedSessions: number; deletedExpenses: number; preservedTeams: number } {
-    const teams = this.getTeams();
-    let sessions: Record<string, GameSession> = {};
-    try {
-      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
-    } catch {}
-    const expenses = this.getExpenses();
-
-    const demoTeams = teams.filter(t => this.isDemoTeam(t));
-    const realTeams = teams.filter(t => !this.isDemoTeam(t));
-    const demoTeamIds = new Set(demoTeams.map(t => t.teamId));
-
-    let deletedSessions = 0;
-    const cleanSessions: Record<string, GameSession> = {};
-    for (const [id, sess] of Object.entries(sessions)) {
-      if (demoTeamIds.has(id)) {
-        deletedSessions++;
-      } else {
-        cleanSessions[id] = sess;
-      }
-    }
-
-    const demoExpenses = expenses.filter(e => e.id.startsWith('exp-demo-') || e.id.startsWith('exp-'));
-    const realExpenses = expenses.filter(e => !e.id.startsWith('exp-demo-') && !e.id.startsWith('exp-'));
-
-    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(realTeams));
-    localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify(cleanSessions));
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(realExpenses));
-
-    // Clear active session if it was a demo team
-    const activeTeamId = this.getActiveTeamId();
-    if (activeTeamId && demoTeamIds.has(activeTeamId)) {
-      this.setActiveTeamId(null);
-    }
-
-    return {
-      deletedTeams: demoTeams.length,
-      deletedSessions,
-      deletedExpenses: demoExpenses.length,
-      preservedTeams: realTeams.length
-    };
-  }
-
-  // Complete atomic reset to clean state (Total Registrations: 0, Revenue: ₹0, Expenses: ₹0, Closing Cash: ₹1,000)
-  public resetToCleanState(): { success: boolean; clearedTeams: number; clearedSessions: number; clearedExpenses: number } {
-    const teams = this.getTeams();
-    let sessions: Record<string, GameSession> = {};
-    try {
-      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
-    } catch {}
-    const expenses = this.getExpenses();
-
-    const clearedTeams = teams.length;
-    const clearedSessions = Object.keys(sessions).length;
-    const clearedExpenses = expenses.length;
-
-    // Atomically write clean empty collections
-    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEYS.GAME_SESSIONS, JSON.stringify({}));
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_TEAM_ID);
-
-    return {
-      success: true,
-      clearedTeams,
-      clearedSessions,
-      clearedExpenses
-    };
-  }
-
-  // Get dynamic dashboard counts
-  public getDashboardCounts() {
-    const teams = this.getTeams();
-    let sessions: Record<string, GameSession> = {};
-    try {
-      sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME_SESSIONS) || '{}');
-    } catch {}
-
-    const verifiedTeams = teams.filter(t => t.paymentStatus === 'VERIFIED');
-    const pendingTeams = teams.filter(t => t.paymentStatus === 'PENDING');
-    
-    let activeSessionsCount = 0;
-    let completedGamesCount = 0;
-    for (const s of Object.values(sessions)) {
-      if (s.status === 'IN_PROGRESS') activeSessionsCount++;
-      if (s.status === 'COMPLETED') completedGamesCount++;
-    }
-
-    const leaderboard = this.getLeaderboard();
-    const fin = this.getFinanceSummary();
-
-    return {
-      totalRegistrations: teams.length,
-      verifiedTeams: verifiedTeams.length,
-      pendingApprovals: pendingTeams.length,
-      activeSessions: activeSessionsCount,
-      completedGames: completedGamesCount,
-      leaderboardParticipants: leaderboard.length,
-      verifiedRevenue: fin.realRevenue,
-      recordedExpenses: fin.totalExpenses,
-      netProfit: fin.netProfit,
-      initialCapital: fin.initialCapital,
-      closingCash: fin.closingCash,
-      capitalToReturn: fin.capitalToReturn,
-      retainedProfit: fin.retainedProfit,
-      totalParticipants: teams.reduce((acc, t) => acc + t.playerCount, 0)
-    };
-  }
-
+  // RESET ALL DATA FOR CLEAN EVENT START
   public resetAllData() {
-    this.resetToCleanState();
+    localStorage.removeItem(STORAGE_KEYS.TEAMS);
+    localStorage.removeItem(STORAGE_KEYS.GAME_SESSIONS);
+    localStorage.removeItem(STORAGE_KEYS.EXPENSES);
+    localStorage.removeItem(STORAGE_KEYS.ADMIN_SETTINGS);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_TEAM_ID);
+    localStorage.removeItem(STORAGE_KEYS.QUESTIONS);
   }
 }
 

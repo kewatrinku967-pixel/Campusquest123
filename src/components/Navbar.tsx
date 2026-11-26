@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Volume2, VolumeX, LogIn, Lock, Trophy, UserCheck, Search, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, LogIn, Lock, Trophy, Sparkles, Gamepad2, UserCheck, Flame } from 'lucide-react';
 import { sound } from '../utils/sound';
 import { Team } from '../types';
 
@@ -25,62 +25,80 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleSound
 }) => {
   return (
-    <header className="sticky top-0 z-50 bg-[#08090d]/90 backdrop-blur-md border-b border-[#232b3d]">
+    <header className="sticky top-0 z-50 bg-[#090a16]/95 backdrop-blur-md border-b-2 border-[#2a2f5a]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
-        {/* Brand & Case Badge */}
+        {/* Brand & Event Banner */}
         <div 
           onClick={() => { sound.playClick(); setCurrentView('landing'); }}
           className="flex items-center gap-3 cursor-pointer group"
         >
-          <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-amber-500/20 to-red-500/10 border border-amber-500/40 flex items-center justify-center group-hover:border-amber-400 transition-colors shadow-glow-gold">
-            <Search className="w-6 h-6 text-amber-400 group-hover:scale-110 transition-transform" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 via-pink-600 to-yellow-400 p-0.5 shadow-glow-purple group-hover:scale-105 transition-transform">
+            <div className="w-full h-full bg-[#090a16] rounded-[10px] flex items-center justify-center">
+              <Gamepad2 className="w-6 h-6 text-yellow-400 animate-pulse" />
+            </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-extrabold text-xl tracking-wider text-slate-100">
-                CAMPUS<span className="text-amber-400">QUEST</span>
+              <span className="font-display font-black text-xl tracking-wider text-white">
+                CHAOS:<span className="text-pink-500">PLOT</span><span className="text-yellow-400">TWIST</span>
               </span>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-red-950/80 border border-red-800 text-red-400 font-bold tracking-widest animate-pulse">
-                CASE #001
+              <span className="hidden sm:inline-block text-[9px] font-arcade px-2 py-0.5 rounded bg-purple-950/80 border border-purple-500 text-purple-300 font-bold uppercase tracking-wider">
+                CAMPUS FEST
               </span>
             </div>
-            <p className="text-xs font-mono text-slate-400 hidden sm:block">
-              THE MISSING FILE // CLASSIFIED
+            <p className="text-[11px] font-mono text-purple-300/80 hidden sm:block tracking-wide">
+              COLLEGE CAMPUS FEST // MYSTERY & MIND GAMES
             </p>
           </div>
         </div>
 
         {/* Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1 font-medium text-sm text-slate-300">
+        <nav className="hidden md:flex items-center gap-2 font-medium text-sm text-slate-300">
           <button
             onClick={() => { sound.playClick(); setCurrentView('landing'); }}
-            className={`px-3 py-2 rounded-md transition-colors ${currentView === 'landing' ? 'text-amber-400 bg-amber-500/10' : 'hover:text-white hover:bg-slate-800/50'}`}
+            className={`px-3 py-2 rounded-lg transition-all ${
+              currentView === 'landing' 
+                ? 'text-yellow-300 bg-purple-900/40 border border-purple-500/50 shadow-glow-purple' 
+                : 'hover:text-white hover:bg-slate-800/60'
+            }`}
           >
-            Case Dossier
+            Fest Arena
           </button>
           
           <button
             onClick={() => { sound.playClick(); setCurrentView('leaderboard'); }}
-            className={`px-3 py-2 rounded-md transition-colors flex items-center gap-1.5 ${currentView === 'leaderboard' ? 'text-amber-400 bg-amber-500/10' : 'hover:text-white hover:bg-slate-800/50'}`}
+            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+              currentView === 'leaderboard' 
+                ? 'text-yellow-300 bg-purple-900/40 border border-purple-500/50 shadow-glow-purple' 
+                : 'hover:text-white hover:bg-slate-800/60'
+            }`}
           >
-            <Trophy className="w-4 h-4 text-amber-400" />
+            <Trophy className="w-4 h-4 text-yellow-400" />
             Leaderboard
           </button>
 
           {activeTeam && (
             <button
               onClick={() => { sound.playClick(); setCurrentView('investigation'); }}
-              className={`px-3 py-2 rounded-md transition-colors flex items-center gap-1.5 ${currentView === 'investigation' ? 'text-amber-400 bg-amber-500/10' : 'hover:text-white hover:bg-slate-800/50'}`}
+              className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                currentView === 'investigation' 
+                  ? 'text-pink-400 bg-pink-950/40 border border-pink-500/50 shadow-glow-pink' 
+                  : 'hover:text-white hover:bg-slate-800/60'
+              }`}
             >
-              <Shield className="w-4 h-4 text-emerald-400" />
-              Investigation Room
+              <Flame className="w-4 h-4 text-pink-500 animate-bounce" />
+              Game Chamber
             </button>
           )}
 
           <button
             onClick={() => { sound.playClick(); setCurrentView('admin'); }}
-            className={`px-3 py-2 rounded-md transition-colors flex items-center gap-1.5 text-slate-400 hover:text-slate-200 ${currentView === 'admin' ? 'text-red-400 bg-red-500/10' : 'hover:bg-slate-800/50'}`}
+            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 text-slate-400 hover:text-purple-300 ${
+              currentView === 'admin' 
+                ? 'text-yellow-400 bg-purple-900/40 border border-yellow-500/50' 
+                : 'hover:bg-slate-800/40'
+            }`}
           >
             <Lock className="w-3.5 h-3.5" />
             Organizer Portal
@@ -93,9 +111,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onToggleSound}
             title={isMuted ? "Unmute Audio SFX" : "Mute Audio SFX"}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors"
+            className="p-2.5 rounded-lg bg-[#151838] border border-[#2a2f5a] text-purple-300 hover:text-yellow-400 hover:border-purple-400 transition-colors shadow-sm"
           >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
+            {isMuted ? <VolumeX className="w-4 h-4 text-slate-500" /> : <Volume2 className="w-4 h-4 text-yellow-400" />}
           </button>
 
           {/* User state / CTAs */}
@@ -103,17 +121,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-2">
               <div 
                 onClick={() => setCurrentView('investigation')}
-                className="hidden sm:flex flex-col text-right cursor-pointer bg-slate-900/80 border border-slate-700 px-3 py-1 rounded-md hover:border-amber-500/50"
+                className="hidden sm:flex flex-col text-right cursor-pointer bg-[#151838] border border-purple-500/50 px-3 py-1.5 rounded-lg hover:border-yellow-400 transition-colors"
               >
-                <span className="text-xs font-semibold text-amber-400 flex items-center gap-1 justify-end">
-                  <UserCheck className="w-3.5 h-3.5" />
+                <span className="text-xs font-bold text-yellow-300 flex items-center gap-1 justify-end">
+                  <UserCheck className="w-3.5 h-3.5 text-pink-400" />
                   {activeTeam.teamName}
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">{activeTeam.teamId}</span>
+                <span className="text-[10px] font-mono text-purple-300 uppercase">
+                  {activeTeam.category} // {activeTeam.teamId}
+                </span>
               </div>
               <button
                 onClick={() => { sound.playClick(); onLogout(); }}
-                className="text-xs px-2.5 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-red-950/80 hover:text-red-300 border border-slate-700 transition-colors"
+                className="text-xs px-3 py-2 rounded-lg bg-slate-900 text-slate-300 hover:bg-red-950 hover:text-red-300 border border-slate-700 transition-colors"
               >
                 Exit
               </button>
@@ -122,18 +142,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { sound.playClick(); onOpenLogin(); }}
-                className="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg text-slate-200 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700 transition-colors flex items-center gap-1.5"
+                className="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-200 hover:text-white bg-[#151838] hover:bg-[#1e224d] border border-[#2a2f5a] transition-all flex items-center gap-1.5"
               >
-                <LogIn className="w-4 h-4 text-amber-400" />
-                <span className="hidden sm:inline">Agent</span> Login
+                <LogIn className="w-4 h-4 text-purple-400" />
+                <span className="hidden sm:inline">Player</span> Login
               </button>
 
               <button
                 onClick={() => { sound.playClick(); onOpenRegister(); }}
-                className="px-4 py-2 text-xs sm:text-sm font-bold rounded-lg text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-glow-gold transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5"
+                className="px-4 py-2 text-xs sm:text-sm font-black rounded-lg text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 shadow-glow-yellow transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5"
               >
                 <Sparkles className="w-4 h-4" />
-                Register Team
+                Register Now
               </button>
             </div>
           )}

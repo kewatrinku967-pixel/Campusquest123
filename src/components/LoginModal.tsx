@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, KeyRound, AlertTriangle, ArrowRight, ShieldCheck, HelpCircle } from 'lucide-react';
+import { X, KeyRound, AlertTriangle, ArrowRight, Gamepad2, Sparkles, HelpCircle } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { sound } from '../utils/sound';
 import { Team } from '../types';
@@ -20,14 +20,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [teamId, setTeamId] = useState('');
   const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState('');
-  const [warningMessage, setWarningMessage] = useState('');
 
   if (!isOpen) return null;
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setWarningMessage('');
 
     if (!teamId.trim() || !accessCode.trim()) {
       setError('Please provide both your Team ID and Access Code.');
@@ -37,36 +35,34 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     const team = storage.getTeamByCredentials(teamId, accessCode);
     if (!team) {
-      setError('Invalid credentials. Double check your assigned Team ID (e.g. CQ-2048) and confidential Access Code.');
+      setError('Invalid credentials. Check your Team ID (e.g. CHAOS-D-7777) and Access Code.');
       sound.playError();
       return;
     }
 
     if (team.paymentStatus === 'REJECTED') {
-      setError(`Access Denied: Payment was rejected. Reason: ${team.rejectionReason || 'Invalid transaction ID'}`);
+      setError(`Access Denied: Payment rejected. Reason: ${team.rejectionReason || 'UPI ref not verified.'}`);
       sound.playError();
       return;
     }
 
-    if (team.paymentStatus === 'PENDING') {
-      setWarningMessage(`Payment Pending: Team "${team.teamName}" is registered, but UPI verification is still pending in the Organizer Portal. You can view your team dashboard, but the timer requires admin approval to begin.`);
-      sound.playHintWarning();
-      onSuccess(team);
-      onClose();
-      return;
-    }
-
-    // Verified!
+    // Login successful!
     sound.playSuccess();
     onSuccess(team);
     onClose();
   };
 
+  const handleQuickDemo = (demoId: string, demoCode: string) => {
+    sound.playClick();
+    setTeamId(demoId);
+    setAccessCode(demoCode);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-md bg-[#0e111a] border border-[#232b3d] rounded-2xl shadow-2xl p-6 sm:p-8 text-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+      <div className="relative w-full max-w-md bg-[#0f1124] border-2 border-purple-500/80 rounded-3xl shadow-2xl p-6 sm:p-8 text-slate-100">
         
-        {/* Close */}
+        {/* Close Button */}
         <button
           onClick={() => { sound.playClick(); onClose(); }}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
@@ -75,22 +71,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </button>
 
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400 mb-3 shadow-glow-gold">
-            <KeyRound className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 via-pink-600 to-yellow-400 p-0.5 mx-auto mb-3 shadow-glow-purple">
+            <div className="w-full h-full bg-[#090a16] rounded-[14px] flex items-center justify-center">
+              <Gamepad2 className="w-7 h-7 text-yellow-400 animate-pulse" />
+            </div>
           </div>
-          <span className="classified-stamp text-[10px] text-amber-400 border-amber-500 bg-amber-950/40">
-            DETECTIVE CLEARANCE
+          <span className="text-[9px] font-arcade px-2.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500 uppercase font-bold tracking-wider">
+            PLAYER AUTHENTICATION
           </span>
-          <h3 className="text-xl font-display font-bold text-white mt-2">
-            Team Access Verification
+          <h3 className="text-2xl font-display font-black text-white mt-1">
+            Enter Game Arena
           </h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Enter your credentials assigned during registration.
+          <p className="text-xs font-mono text-purple-200 mt-1">
+            Input your assigned Team ID and Access Code.
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-950/80 border border-red-800 text-red-300 text-xs flex items-center gap-2">
+          <div className="mb-4 p-3 rounded-xl bg-red-950/80 border border-red-500 text-red-200 text-xs font-mono flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{error}</span>
           </div>
@@ -99,44 +97,44 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-mono text-slate-400 uppercase mb-1">
-              Team ID
+              Assigned Team ID
             </label>
             <input
               type="text"
               required
               value={teamId}
               onChange={e => setTeamId(e.target.value)}
-              placeholder="e.g. CQ-2048"
-              className="w-full bg-[#121622] border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 uppercase"
+              placeholder="e.g. CHAOS-D-7777"
+              className="w-full bg-[#151838] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-yellow-300 font-mono tracking-wider placeholder-slate-600 focus:outline-none focus:border-purple-400 uppercase font-bold"
             />
           </div>
 
           <div>
             <label className="block text-xs font-mono text-slate-400 uppercase mb-1">
-              Confidential Access Code
+              Secret Access Code
             </label>
             <input
               type="text"
               required
               value={accessCode}
               onChange={e => setAccessCode(e.target.value)}
-              placeholder="e.g. CIPHER42"
-              className="w-full bg-[#121622] border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 uppercase"
+              placeholder="e.g. TWIST88"
+              className="w-full bg-[#151838] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-pink-300 font-mono tracking-wider placeholder-slate-600 focus:outline-none focus:border-purple-400 uppercase font-bold"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-3 px-4 rounded-xl font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-colors flex items-center justify-center gap-2 shadow-glow-gold"
+            className="w-full py-3.5 px-4 rounded-xl font-display font-black text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 transition-all flex items-center justify-center gap-2 shadow-glow-yellow text-sm"
           >
-            Authenticate & Enter
+            Authenticate & Play
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-xs text-slate-400">
-            Don't have a team yet?{' '}
+          <p className="text-xs text-slate-400 font-mono">
+            Need to register a squad?{' '}
             <button
               type="button"
               onClick={() => {
@@ -144,9 +142,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 onClose();
                 onOpenRegister();
               }}
-              className="text-amber-400 hover:underline font-semibold"
+              className="text-yellow-400 hover:underline font-bold"
             >
-              Register here (₹30/player)
+              Register here (Single / Duo / Tribe)
             </button>
           </p>
         </div>
