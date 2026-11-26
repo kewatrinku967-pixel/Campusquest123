@@ -26,11 +26,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
   const [settings, setSettings] = useState<AdminSettings>(storage.getAdminSettings());
   const [questions, setQuestions] = useState<Question[]>(storage.getQuestions());
   
-  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'payments' | 'sessions' | 'timer' | 'questions' | 'finances' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'payments' | 'leaderboard' | 'sessions' | 'timer' | 'questions' | 'finances' | 'reports'>('overview');
 
   // Filters
   const [teamCategoryFilter, setTeamCategoryFilter] = useState<'all' | ParticipationCategory>('all');
   const [teamStatusFilter, setTeamStatusFilter] = useState<'all' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('all');
+  const [leaderboardFilter, setLeaderboardFilter] = useState<'all' | ParticipationCategory>('all');
   const [questionCategoryFilter, setQuestionCategoryFilter] = useState<'all' | ParticipationCategory>('all');
   const [questionSearch, setQuestionSearch] = useState('');
 
@@ -322,7 +323,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
           { id: 'overview', label: '📊 Financial & Ops Overview' },
           { id: 'teams', label: `👥 Squad Registry (${teams.length})` },
           { id: 'payments', label: `💳 Payment Approvals (${pendingTeams.length} Pending)` },
-          { id: 'timer', label: `⏱️ Timer Presets (${TIMER_PRESETS[settings.selectedTimerPreset]?.badge || 'STANDARD'})` },
+          { id: 'leaderboard', label: '🏆 Percentage Leaderboard' },
+          { id: 'timer', label: `⏱️ Timer Presets (${TIMER_PRESETS[settings.selectedTimerPreset]?.badge || 'FAST'})` },
           { id: 'questions', label: `❓ 70-Question Bank (${questions.length})` },
           { id: 'finances', label: '💰 Budget & Ledger' },
           { id: 'reports', label: '📥 CSV Export Reports' }
@@ -368,6 +370,41 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
               <span className="text-[10px] text-yellow-300 uppercase block font-bold">VERIFIED REVENUE</span>
               <div className="text-3xl font-black text-yellow-400 mt-1 font-display">₹{verifiedRevenue}</div>
               <span className="text-xs text-slate-400 mt-1 block">Sum of verified only</span>
+            </div>
+          </div>
+
+          {/* Active Event Timer Configuration Banner */}
+          <div className="bg-[#151838] border-2 border-yellow-400 rounded-3xl p-5 sm:p-6 space-y-3 shadow-glow-yellow">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-900 pb-3">
+              <div>
+                <span className="text-[10px] font-arcade px-2.5 py-0.5 rounded bg-yellow-400 text-slate-950 font-black uppercase">
+                  ACTIVE EVENT PRESET
+                </span>
+                <h4 className="text-xl font-display font-black text-white mt-1">
+                  Selected Preset: {settings.selectedTimerPreset === 'option_a' ? 'FAST CHALLENGE' : TIMER_PRESETS[settings.selectedTimerPreset]?.name}
+                </h4>
+              </div>
+              <button
+                onClick={() => setActiveTab('timer')}
+                className="text-xs font-mono text-yellow-300 hover:text-white underline font-bold"
+              >
+                Change Preset in Timer Settings →
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
+              <div className="p-3 bg-[#090a16] rounded-xl border border-slate-700 flex justify-between items-center">
+                <span className="text-purple-300 font-bold">Single timer:</span>
+                <strong className="text-yellow-300 text-base">{TIMER_PRESETS[settings.selectedTimerPreset]?.durations.single} minutes</strong>
+              </div>
+              <div className="p-3 bg-[#090a16] rounded-xl border border-slate-700 flex justify-between items-center">
+                <span className="text-pink-300 font-bold">Duo timer:</span>
+                <strong className="text-pink-300 text-base">{TIMER_PRESETS[settings.selectedTimerPreset]?.durations.duo} minutes</strong>
+              </div>
+              <div className="p-3 bg-[#090a16] rounded-xl border border-slate-700 flex justify-between items-center">
+                <span className="text-yellow-300 font-bold">Tribe timer:</span>
+                <strong className="text-purple-300 text-base">{TIMER_PRESETS[settings.selectedTimerPreset]?.durations.tribe} minutes</strong>
+              </div>
             </div>
           </div>
 
@@ -636,6 +673,101 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onBackTo
           )}
         </div>
       )}
+
+      {/* TAB: ORGANIZER PERCENTAGE LEADERBOARD */}
+      {activeTab === 'leaderboard' && (() => {
+        const leaderboardEntries = storage.getLeaderboard(leaderboardFilter);
+        return (
+          <div className="space-y-4 font-mono text-xs">
+            <div className="p-4 bg-[#090a16] rounded-2xl border-2 border-yellow-400 flex flex-wrap justify-between items-center gap-3">
+              <div>
+                <span className="font-bold text-yellow-300 uppercase block font-arcade text-xs">
+                  ★ OFFICIAL PERCENTAGE-BASED LEADERBOARD ★
+                </span>
+                <span className="text-[11px] text-purple-200">
+                  Formula: percentage_score = (correct_answers / total_questions) * 100
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white uppercase text-[11px]">FILTER:</span>
+                <select
+                  value={leaderboardFilter}
+                  onChange={e => setLeaderboardFilter(e.target.value as any)}
+                  className="bg-[#151838] border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs"
+                >
+                  <option value="all">All Categories (Overall Standings)</option>
+                  <option value="single">Single Only (10 Questions)</option>
+                  <option value="duo">Duo Only (20 Questions)</option>
+                  <option value="tribe">Tribe Only (30 Questions)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-[#151838] border-2 border-purple-500/80 rounded-3xl overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-purple-900 bg-[#090a16] text-purple-300 uppercase text-[10px] tracking-wider">
+                      <th className="py-3 px-3 text-center">RANK</th>
+                      <th className="py-3 px-3">PARTICIPANT / TEAM NAME</th>
+                      <th className="py-3 px-3">CATEGORY</th>
+                      <th className="py-3 px-3 text-center">CORRECT ANSWERS</th>
+                      <th className="py-3 px-3 text-center">TOTAL QUESTIONS</th>
+                      <th className="py-3 px-3 text-center">PERCENTAGE SCORE</th>
+                      <th className="py-3 px-3 text-center">COMPLETION TIME</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-900/50">
+                    {leaderboardEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                          No completed sessions recorded yet. Completed challenges will automatically populate here.
+                        </td>
+                      </tr>
+                    ) : (
+                      leaderboardEntries.map(entry => (
+                        <tr key={entry.teamId} className="hover:bg-purple-950/40">
+                          <td className="py-3 px-3 text-center">
+                            <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs ${
+                              entry.rank === 1 ? 'bg-yellow-400 text-slate-950 font-black' :
+                              entry.rank === 2 ? 'bg-slate-300 text-slate-950 font-black' :
+                              entry.rank === 3 ? 'bg-amber-700 text-white font-bold' :
+                              'text-slate-400'
+                            }`}>
+                              {entry.rank}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-bold text-white">
+                            {entry.teamName} <span className="text-[10px] text-slate-400 font-normal">({entry.teamId})</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="text-[9px] font-arcade px-2 py-0.5 rounded bg-purple-950 border border-purple-500 text-purple-300 uppercase font-bold">
+                              {entry.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-yellow-300">
+                            {entry.correct_answers}
+                          </td>
+                          <td className="py-3 px-3 text-center text-slate-300">
+                            {entry.total_questions}
+                          </td>
+                          <td className="py-3 px-3 text-center font-bold text-emerald-400">
+                            {(entry.percentage_score !== undefined ? entry.percentage_score : entry.percentageScore).toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-3 text-center text-slate-200">
+                            {entry.durationFormatted}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TAB 4: TIMER PRESETS */}
       {activeTab === 'timer' && (

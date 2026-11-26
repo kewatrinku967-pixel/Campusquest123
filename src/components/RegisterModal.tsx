@@ -221,21 +221,25 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
-                onClick={() => {
+                onClick={async () => {
                   sound.playSuccess();
+                  await api.startGameSession(registeredTeam.teamId);
                   onSuccessLogin(registeredTeam);
                   onClose();
                 }}
                 className="flex-1 py-3.5 px-4 rounded-xl font-display font-black text-slate-950 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 hover:from-yellow-300 hover:to-pink-400 transition-all flex items-center justify-center gap-2 text-sm shadow-glow-yellow"
               >
-                Proceed to Game Room
+                🎮 START CHALLENGE NOW ({registeredTeam.category === 'single' ? '15' : registeredTeam.category === 'duo' ? '25' : '40'} MINS FAST)
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button
-                onClick={onClose}
+                onClick={() => {
+                  onSuccessLogin(registeredTeam);
+                  onClose();
+                }}
                 className="py-3.5 px-4 rounded-xl text-slate-300 bg-[#151838] hover:bg-[#1f2452] border border-slate-700 text-sm transition-colors"
               >
-                Return to Fest Arena
+                Enter Game Lobby
               </button>
             </div>
           </div>
@@ -509,9 +513,21 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               {/* UTR Input & Screenshot Upload */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
-                  <label className="block text-xs font-mono text-yellow-300 uppercase font-bold mb-1">
-                    12-Digit UPI Ref / UTR ID *
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-mono text-yellow-300 uppercase font-bold">
+                      12-Digit UPI Ref / UTR ID *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sound.playClick();
+                        setPaymentRef(`UTR${Math.floor(1000000000 + Math.random() * 9000000000)}`);
+                      }}
+                      className="text-[10px] text-yellow-400 hover:text-white underline font-mono"
+                    >
+                      ⚡ Auto-Generate UTR
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required

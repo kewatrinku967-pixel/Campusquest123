@@ -139,12 +139,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ currentTeam, o
 
               <div className="grid grid-cols-2 gap-2 pt-3 border-t border-purple-900/80 font-mono text-xs">
                 <div className="bg-[#090a16] p-2.5 rounded-xl">
-                  <span className="text-[10px] text-slate-400 block">SCORE</span>
-                  <span className="font-black text-yellow-400 text-base">{top3[1].score}/{top3[1].maxScore}</span>
+                  <span className="text-[10px] text-slate-400 block">ACCURACY</span>
+                  <span className="font-black text-yellow-400 text-sm">{top3[1].correct_answers}/{top3[1].total_questions} Qs</span>
                 </div>
                 <div className="bg-[#090a16] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">PERCENTAGE</span>
-                  <span className="font-black text-emerald-400 text-base">{top3[1].percentageScore}%</span>
+                  <span className="font-black text-emerald-400 text-sm">{(top3[1].percentage_score !== undefined ? top3[1].percentage_score : top3[1].percentageScore || 0).toFixed(2)}%</span>
                 </div>
               </div>
             </div>
@@ -168,12 +168,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ currentTeam, o
 
               <div className="grid grid-cols-2 gap-3 pt-3 border-t border-purple-900/80 font-mono text-xs">
                 <div className="bg-[#090a16] p-3 rounded-xl border border-yellow-500/40">
-                  <span className="text-[10px] text-slate-400 block">SCORE</span>
-                  <span className="font-black text-yellow-400 text-lg">{top3[0].score}/{top3[0].maxScore}</span>
+                  <span className="text-[10px] text-slate-400 block">ACCURACY</span>
+                  <span className="font-black text-yellow-400 text-base">{top3[0].correct_answers}/{top3[0].total_questions} Qs</span>
                 </div>
                 <div className="bg-[#090a16] p-3 rounded-xl border border-yellow-500/40">
                   <span className="text-[10px] text-slate-400 block">PERCENTAGE</span>
-                  <span className="font-black text-emerald-400 text-lg">{top3[0].percentageScore}%</span>
+                  <span className="font-black text-emerald-400 text-base">{(top3[0].percentage_score !== undefined ? top3[0].percentage_score : top3[0].percentageScore || 0).toFixed(2)}%</span>
                 </div>
               </div>
             </div>
@@ -197,12 +197,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ currentTeam, o
 
               <div className="grid grid-cols-2 gap-2 pt-3 border-t border-purple-900/80 font-mono text-xs">
                 <div className="bg-[#090a16] p-2.5 rounded-xl">
-                  <span className="text-[10px] text-slate-400 block">SCORE</span>
-                  <span className="font-black text-yellow-400 text-base">{top3[2].score}/{top3[2].maxScore}</span>
+                  <span className="text-[10px] text-slate-400 block">ACCURACY</span>
+                  <span className="font-black text-yellow-400 text-sm">{top3[2].correct_answers}/{top3[2].total_questions} Qs</span>
                 </div>
                 <div className="bg-[#090a16] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">PERCENTAGE</span>
-                  <span className="font-black text-emerald-400 text-base">{top3[2].percentageScore}%</span>
+                  <span className="font-black text-emerald-400 text-sm">{(top3[2].percentage_score !== undefined ? top3[2].percentage_score : top3[2].percentageScore || 0).toFixed(2)}%</span>
                 </div>
               </div>
             </div>
@@ -235,12 +235,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ currentTeam, o
             <thead>
               <tr className="border-b border-purple-900/60 bg-[#090a16] text-purple-300 uppercase tracking-wider text-[11px]">
                 <th className="py-4 px-4 text-center">RANK</th>
-                <th className="py-4 px-4">DETECTIVE SQUAD</th>
+                <th className="py-4 px-4">PARTICIPANT / TEAM NAME</th>
                 <th className="py-4 px-4">CATEGORY</th>
-                <th className="py-4 px-4 text-center">RAW SCORE</th>
-                <th className="py-4 px-4 text-center">NORMALIZED %</th>
-                <th className="py-4 px-4 text-center">NET TIME</th>
-                <th className="py-4 px-4 text-right">FINISHED AT</th>
+                <th className="py-4 px-4 text-center">CORRECT ANSWERS</th>
+                <th className="py-4 px-4 text-center">TOTAL QUESTIONS</th>
+                <th className="py-4 px-4 text-center">PERCENTAGE SCORE</th>
+                <th className="py-4 px-4 text-center">COMPLETION TIME</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-purple-950/60">
@@ -289,19 +289,19 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ currentTeam, o
                     </td>
 
                     <td className="py-4 px-4 text-center text-yellow-300 font-bold">
-                      {item.score}/{item.maxScore}
+                      {item.correct_answers}
+                    </td>
+
+                    <td className="py-4 px-4 text-center text-slate-300">
+                      {item.total_questions}
                     </td>
 
                     <td className="py-4 px-4 text-center font-bold text-emerald-400">
-                      {item.percentageScore}%
+                      {(item.percentage_score !== undefined ? item.percentage_score : (item.percentageScore || 0)).toFixed(2)}%
                     </td>
 
                     <td className="py-4 px-4 text-center text-slate-200">
                       {item.durationFormatted}
-                    </td>
-
-                    <td className="py-4 px-4 text-right text-slate-400">
-                      {item.finishedAt}
                     </td>
                   </tr>
                 ))

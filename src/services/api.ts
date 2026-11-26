@@ -180,6 +180,7 @@ class ApiService {
       ...session,
       status: 'IN_PROGRESS',
       startTime: now,
+      started_at: new Date(now).toISOString(),
       deadlineTime: now + session.totalDurationSeconds * 1000
     };
     storage.saveGameSession(updated);
@@ -192,9 +193,7 @@ class ApiService {
     const isCompleted = session.completedQuestions.length >= session.assignedQuestionIds.length;
 
     if (isCompleted && session.status !== 'COMPLETED') {
-      session.status = 'COMPLETED';
-      session.endTime = Date.now();
-      storage.saveGameSession(session);
+      storage.finishGameSession(teamId);
     }
 
     return {

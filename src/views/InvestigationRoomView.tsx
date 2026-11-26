@@ -182,14 +182,8 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
   const handleFinishChallenge = () => {
     if (!session) return;
     sound.playVictory();
-    const now = Date.now();
-    const completedSession: GameSession = {
-      ...session,
-      status: 'COMPLETED',
-      endTime: now
-    };
+    const completedSession = storage.finishGameSession(team.teamId);
     setSession(completedSession);
-    storage.saveGameSession(completedSession);
     setIsSubmitAllModalOpen(false);
 
     confetti({
@@ -273,23 +267,23 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
 
       </div>
 
-      {/* Payment Pending Alert Gate */}
+      {/* Payment Reference Banner */}
       {team.paymentStatus === 'PENDING' && (
-        <div className="p-5 rounded-2xl bg-orange-950/60 border-2 border-orange-500/80 text-orange-200 text-xs font-mono flex items-start gap-3">
-          <AlertTriangle className="w-6 h-6 text-yellow-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <strong className="text-white block text-sm font-arcade uppercase">
-              UPI Verification Under Review by Organizer
+        <div className="p-4 rounded-2xl bg-purple-950/70 border-2 border-yellow-400/80 text-yellow-200 text-xs font-mono flex items-start gap-3 shadow-pixel-yellow">
+          <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <strong className="text-white block text-xs font-arcade uppercase">
+              UPI Reference Logged: {team.paymentRef}
             </strong>
-            <p>
-              Your payment reference <code className="bg-black/50 px-2 py-0.5 rounded text-yellow-300 font-bold">{team.paymentRef}</code> has been submitted. The organizers (Narsingh Kumar Kewat) will verify your transaction shortly. Once verified, you can launch the timer!
+            <p className="text-slate-300">
+              Clearance granted. Launch your challenge below whenever your squad is ready!
             </p>
           </div>
         </div>
       )}
 
       {/* Pre-Game Start Screen */}
-      {session?.status === 'NOT_STARTED' && team.paymentStatus === 'VERIFIED' && (
+      {session?.status === 'NOT_STARTED' && (
         <div className="bg-[#151838] border-4 border-yellow-400 rounded-3xl p-8 text-center space-y-6 shadow-glow-yellow max-w-2xl mx-auto my-6">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-400 to-pink-500 flex items-center justify-center mx-auto text-slate-950 shadow-lg">
             <Flame className="w-9 h-9" />
@@ -313,8 +307,9 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
             </div>
             <p>• Category: <strong className="text-white">{spec.title}</strong></p>
             <p>• Total Questions: <strong className="text-yellow-300">{spec.questionCount} Questions</strong> ({spec.difficultyLabel})</p>
-            <p>• Max Possible Score: <strong className="text-emerald-400">{spec.maxScore} Points</strong></p>
-            <p>• Timer: Persistent server clock (refreshing page preserves time and questions)</p>
+            <p>• Active Timer: <strong className="text-yellow-300">{Math.floor((session?.totalDurationSeconds || 900) / 60)} Minutes</strong> (Fast Challenge)</p>
+            <p>• Leaderboard Score: <strong className="text-emerald-400">Percentage-Based ((Correct / Total) × 100)</strong></p>
+            <p>• Persistent Clock: Refreshing browser preserves time and question set</p>
           </div>
 
           <button
@@ -346,22 +341,28 @@ export const InvestigationRoomView: React.FC<InvestigationRoomViewProps> = ({
           </div>
 
           {/* Score Summary Box */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono text-xs">
-            <div className="p-4 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
-              <span className="text-slate-400 text-[10px] uppercase block">TOTAL SCORE</span>
-              <span className="text-3xl font-black text-yellow-400 font-display mt-1 block">
-                {session.score} / {spec.maxScore}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+            <div className="p-3.5 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
+              <span className="text-slate-400 text-[10px] uppercase block">CORRECT ANSWERS</span>
+              <span className="text-2xl font-black text-yellow-400 font-display mt-1 block">
+                {session.correct_answers !== undefined ? session.correct_answers : session.completedQuestions.length} / {session.total_questions || totalQuestions}
               </span>
             </div>
-            <div className="p-4 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
+            <div className="p-3.5 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
               <span className="text-slate-400 text-[10px] uppercase block">PERCENTAGE SCORE</span>
-              <span className="text-3xl font-black text-emerald-400 font-display mt-1 block">
-                {session.percentageScore}%
+              <span className="text-2xl font-black text-emerald-400 font-display mt-1 block">
+                {(session.percentage_score !== undefined ? session.percentage_score : session.percentageScore).toFixed(2)}%
               </span>
             </div>
-            <div className="p-4 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
+            <div className="p-3.5 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
+              <span className="text-slate-400 text-[10px] uppercase block">COMPLETION TIME</span>
+              <span className="text-xl font-bold text-yellow-300 mt-1 block">
+                {Math.floor((session.actual_completion_seconds || 0) / 60)}m {(session.actual_completion_seconds || 0) % 60}s
+              </span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-[#090a16] border border-purple-900 text-center">
               <span className="text-slate-400 text-[10px] uppercase block">CATEGORY</span>
-              <span className="text-xl font-bold text-pink-400 uppercase mt-2 block font-arcade text-xs">
+              <span className="text-base font-bold text-pink-400 uppercase mt-2 block font-arcade text-xs">
                 {team.category}
               </span>
             </div>

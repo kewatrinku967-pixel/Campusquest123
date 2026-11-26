@@ -74,17 +74,25 @@ export interface GameSession {
   category: ParticipationCategory;
   status: GameStatus;
   presetUsed: TimerPresetKey;
+  timer_preset?: TimerPresetKey;
   startTime: number | null; // epoch ms
   deadlineTime: number | null; // epoch ms (server-enforced)
   endTime: number | null; // epoch ms
+  started_at?: string | null; // ISO timestamp
+  completed_at?: string | null; // ISO timestamp
+  actual_completion_seconds?: number;
   totalDurationSeconds: number;
   penaltySeconds: number;
   currentQuestionIndex: number;
   assignedQuestionIds: string[]; // Fixed question IDs set on start, never reshuffles on refresh
   answers: Record<string, string>; // questionId -> answer
+  correctAnswersMap?: Record<string, boolean>; // questionId -> isCorrect
+  correct_answers: number;
+  total_questions: number;
   score: number;
   maxScore: number;
   percentageScore: number;
+  percentage_score: number;
   completedQuestions: string[];
 }
 
@@ -125,16 +133,22 @@ export interface LeaderboardEntry {
   teamId: string;
   teamName: string;
   category?: ParticipationCategory;
+  correct_answers?: number;
+  total_questions?: number;
+  percentage_score?: number;
+  percentageScore?: number;
   score: number;
   maxScore?: number;
-  percentageScore?: number;
+  actual_completion_seconds?: number;
   durationSeconds: number;
   durationFormatted: string;
   questionsCompleted?: number;
   stagesCompleted?: number;
-  totalQuestions?: number;
+  started_at?: string;
+  completed_at?: string;
   finishedAt: string;
   finishedAtTimestamp?: number;
+  timer_preset?: TimerPresetKey;
   isCurrentUser?: boolean;
 }
 

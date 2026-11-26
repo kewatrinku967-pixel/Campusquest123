@@ -18,7 +18,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   isEventActive: true,
   isRegistrationOpen: true,
   emergencyNotice: 'CHAOS: PLOT TWIST is officially live! Enter your squad access code to start the challenge.',
-  selectedTimerPreset: 'option_b', // Option B: Single 20m, Duo 30m, Tribe 45m
+  selectedTimerPreset: 'option_a', // Default: OPTION A — FAST CHALLENGE (Single 15m, Duo 25m, Tribe 40m)
   upiId: '7247066469@ptyes',
   upiName: 'NARSINGH KUMAR KEWAT',
   initialCapital: 1000,
@@ -197,7 +197,7 @@ class StorageManager {
     } catch {}
 
     const settings = this.getAdminSettings();
-    const preset = TIMER_PRESETS[settings.selectedTimerPreset] || TIMER_PRESETS.option_b;
+    const preset = TIMER_PRESETS[settings.selectedTimerPreset] || TIMER_PRESETS.option_a;
     const durationMinutes = preset.durations[category];
 
     // Select questions randomly once per session and save them permanently!
@@ -223,17 +223,25 @@ class StorageManager {
       category,
       status: 'NOT_STARTED',
       presetUsed: settings.selectedTimerPreset,
+      timer_preset: settings.selectedTimerPreset,
       startTime: null,
       deadlineTime: null,
       endTime: null,
+      started_at: null,
+      completed_at: null,
+      actual_completion_seconds: 0,
       totalDurationSeconds: durationMinutes * 60,
       penaltySeconds: 0,
       currentQuestionIndex: 0,
       assignedQuestionIds: assignedIds,
       answers: {},
+      correctAnswersMap: {},
+      correct_answers: 0,
+      total_questions: assignedIds.length,
       score: 0,
       maxScore: spec.maxScore,
       percentageScore: 0,
+      percentage_score: 0,
       completedQuestions: []
     };
 
@@ -251,6 +259,45 @@ class StorageManager {
     } catch {}
   }
 
+  // Start game session with server timestamp
+  public startGameSession(teamId: string): GameSession {
+    const session = this.getGameSession(teamId);
+    if (session.status === 'NOT_STARTED') {
+      const now = Date.now();
+      session.status = 'IN_PROGRESS';
+      session.startTime = now;
+      session.started_at = new Date(now).toISOString();
+      session.deadlineTime = now + (session.totalDurationSeconds * 1000);
+      this.saveGameSession(session);
+    }
+    return session;
+  }
+
+  // Finish game session and record final results
+  public finishGameSession(teamId: string): GameSession {
+    const session = this.getGameSession(teamId);
+    const now = Date.now();
+    session.status = 'COMPLETED';
+    session.endTime = now;
+    session.completed_at = new Date(now).toISOString();
+
+    const start = session.startTime || (now - (session.totalDurationSeconds * 1000));
+    const rawSeconds = Math.max(1, Math.floor((now - start) / 1000) + (session.penaltySeconds || 0));
+    session.actual_completion_seconds = rawSeconds;
+
+    if (!session.correctAnswersMap) {
+      session.correctAnswersMap = {};
+    }
+    const correctCount = Object.values(session.correctAnswersMap).filter(Boolean).length;
+    session.correct_answers = correctCount;
+    session.total_questions = session.assignedQuestionIds.length;
+    session.percentage_score = Number(((correctCount / session.total_questions) * 100).toFixed(4));
+    session.percentageScore = session.percentage_score;
+
+    this.saveGameSession(session);
+    return session;
+  }
+
   // Answer validation: Server-side check against Question Bank
   public submitAnswer(teamId: string, questionId: string, answer: string): {
     success: boolean;
@@ -259,32 +306,68 @@ class StorageManager {
     pointsAwarded: number;
     newScore: number;
     newPercentage: number;
+    correctAnswers: number;
+    totalQuestions: number;
   } {
     const session = this.getGameSession(teamId);
     const questions = this.getQuestions();
     const question = questions.find(q => q.id === questionId);
 
     if (!question) {
-      return { success: false, isCorrect: false, explanation: 'Question not found', pointsAwarded: 0, newScore: session.score, newPercentage: session.percentageScore };
+      return {
+        success: false,
+        isCorrect: false,
+        explanation: 'Question not found',
+        pointsAwarded: 0,
+        newScore: session.score,
+        newPercentage: session.percentage_score || 0,
+        correctAnswers: session.correct_answers || 0,
+        totalQuestions: session.total_questions || session.assignedQuestionIds.length
+      };
+    }
+
+    if (!session.correctAnswersMap) {
+      session.correctAnswersMap = {};
     }
 
     // Server-side check
     const normalizedUser = answer.trim().toUpperCase();
     const normalizedCorrect = question.correctAnswer.trim().toUpperCase();
     const isCorrect = normalizedUser === normalizedCorrect;
-
     const points = isCorrect ? question.points : 0;
+
+    // Prevent duplicate answer submissions from increasing scores
+    const wasCorrectBefore = session.correctAnswersMap[questionId] === true;
+
+    if (isCorrect) {
+      if (!wasCorrectBefore) {
+        session.correctAnswersMap[questionId] = true;
+        session.score += points;
+      }
+    } else {
+      if (wasCorrectBefore) {
+        session.correctAnswersMap[questionId] = false;
+        session.score = Math.max(0, session.score - points);
+      } else {
+        session.correctAnswersMap[questionId] = false;
+      }
+    }
 
     // Record answer
     session.answers[questionId] = answer.trim();
     if (!session.completedQuestions.includes(questionId)) {
       session.completedQuestions.push(questionId);
-      if (isCorrect) {
-        session.score += points;
-      }
     }
 
-    session.percentageScore = Math.round((session.score / session.maxScore) * 100);
+    // Count correct answers
+    const correctCount = Object.values(session.correctAnswersMap).filter(Boolean).length;
+    session.correct_answers = correctCount;
+    session.total_questions = session.assignedQuestionIds.length;
+
+    // percentage_score = (correct_answers / total_questions) * 100
+    session.percentage_score = Number(((correctCount / session.total_questions) * 100).toFixed(4));
+    session.percentageScore = session.percentage_score;
+
     this.saveGameSession(session);
 
     return {
@@ -293,7 +376,9 @@ class StorageManager {
       explanation: question.explanation,
       pointsAwarded: points,
       newScore: session.score,
-      newPercentage: session.percentageScore
+      newPercentage: Number(session.percentage_score.toFixed(2)),
+      correctAnswers: session.correct_answers,
+      totalQuestions: session.total_questions
     };
   }
 
@@ -338,7 +423,11 @@ class StorageManager {
   }
 
   // LEADERBOARD COMPUTATION
-  // Tie-breakers: 1. Highest percentageScore DESC, 2. Lowest durationSeconds ASC, 3. Earliest finishedAtTimestamp ASC
+  // Formula: percentage_score = (correct_answers / total_questions) * 100
+  // Ranking Priority:
+  // 1. Highest percentage score.
+  // 2. Lowest actual completion time.
+  // 3. Earliest completion timestamp.
   public getLeaderboard(categoryFilter?: ParticipationCategory | 'all', currentTeamId?: string): LeaderboardEntry[] {
     const teams = this.getTeams();
     const sessions: Record<string, GameSession> = JSON.parse(
@@ -348,28 +437,43 @@ class StorageManager {
     const entries: LeaderboardEntry[] = [];
 
     for (const team of teams) {
-      if (team.paymentStatus !== 'VERIFIED') continue;
       if (categoryFilter && categoryFilter !== 'all' && team.category !== categoryFilter) continue;
 
       const session = sessions[team.teamId];
       if (session && session.status === 'COMPLETED' && session.startTime && session.endTime) {
-        const rawSec = Math.floor((session.endTime - session.startTime) / 1000) + session.penaltySeconds;
+        const rawSec = session.actual_completion_seconds || Math.max(1, Math.floor((session.endTime - session.startTime) / 1000) + (session.penaltySeconds || 0));
         const mins = Math.floor(rawSec / 60);
         const secs = rawSec % 60;
         const durationFormatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+        const totalQuestions = session.total_questions || session.assignedQuestionIds?.length || CATEGORY_SPECS[team.category]?.questionCount || 10;
+        const correctAnswers = session.correct_answers !== undefined 
+          ? session.correct_answers 
+          : (session.correctAnswersMap ? Object.values(session.correctAnswersMap).filter(Boolean).length : Math.round(session.score / (CATEGORY_SPECS[team.category]?.pointsPerQuestion || 10)));
+        
+        // Exact percentage score: (correct_answers / total_questions) * 100
+        const percentageScore = session.percentage_score !== undefined 
+          ? session.percentage_score 
+          : Number(((correctAnswers / totalQuestions) * 100).toFixed(4));
 
         entries.push({
           rank: 0,
           teamId: team.teamId,
           teamName: team.teamName,
           category: team.category,
+          correct_answers: correctAnswers,
+          total_questions: totalQuestions,
+          percentage_score: percentageScore,
+          percentageScore: percentageScore,
           score: session.score,
           maxScore: session.maxScore,
-          percentageScore: session.percentageScore,
+          actual_completion_seconds: rawSec,
           durationSeconds: rawSec,
           durationFormatted,
+          started_at: session.started_at || new Date(session.startTime).toISOString(),
+          completed_at: session.completed_at || new Date(session.endTime).toISOString(),
+          timer_preset: session.presetUsed,
           questionsCompleted: session.completedQuestions.length,
-          totalQuestions: session.assignedQuestionIds.length,
           finishedAt: new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           finishedAtTimestamp: session.endTime,
           isCurrentUser: currentTeamId === team.teamId
@@ -377,13 +481,16 @@ class StorageManager {
       }
     }
 
-    // Sort: 1. Percentage Score DESC, 2. Duration ASC, 3. Finished Timestamp ASC
+    // Ranking priority:
+    // 1. Highest percentage score.
+    // 2. Lowest actual completion time.
+    // 3. Earliest completion timestamp.
     entries.sort((a, b) => {
-      if (b.percentageScore !== a.percentageScore) {
-        return b.percentageScore - a.percentageScore;
+      if (b.percentage_score !== a.percentage_score) {
+        return b.percentage_score - a.percentage_score;
       }
-      if (a.durationSeconds !== b.durationSeconds) {
-        return a.durationSeconds - b.durationSeconds;
+      if (a.actual_completion_seconds !== b.actual_completion_seconds) {
+        return a.actual_completion_seconds - b.actual_completion_seconds;
       }
       return a.finishedAtTimestamp - b.finishedAtTimestamp;
     });
